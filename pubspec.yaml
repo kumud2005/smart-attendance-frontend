@@ -1,0 +1,42 @@
+name: smart_attendance_frontend
+description: "Smart Attendance System Flutter frontend."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  http: ^1.6.0
+  shared_preferences: ^2.5.5
+  mobile_scanner: ^6.0.2
+  geolocator: ^14.0.2
+  camera: ^0.12.0+2
+  opencv_dart: ^2.2.2
+  flutter_onnxruntime: ^1.8.4
+  google_mlkit_face_detection: ^0.15.1
+  public_file_saver: 1.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+hooks:
+  user_defines:
+    dartcv4:
+      include_modules:
+        - imgcodecs
+        - imgproc
+        - calib3d
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/models/det_10g.onnx
+    - assets/models/w600k_r50.onnx
