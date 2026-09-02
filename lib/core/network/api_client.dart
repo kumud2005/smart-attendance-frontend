@@ -103,6 +103,31 @@ class ApiClient {
     return _handleResponse(response);
   }
 
+  Future<dynamic> delete(
+    String endpoint, {
+    Map<String, dynamic>? body,
+    Map<String, String>? headers,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.baseUrl}$endpoint',
+    );
+
+    final authHeaders = await _buildHeaders(
+      headers: headers,
+      includeJsonContentType: body != null,
+    );
+
+    final response = await _client.delete(
+      uri,
+      headers: authHeaders,
+      body: body == null
+          ? null
+          : jsonEncode(body),
+    );
+
+    return _handleResponse(response);
+  }
+
   Future<Map<String, String>> _buildHeaders({
     Map<String, String>? headers,
     bool includeJsonContentType = false,

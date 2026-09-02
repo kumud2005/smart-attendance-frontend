@@ -6,6 +6,9 @@ import '../../models/admin_dashboard_stats.dart';
 import '../../services/admin_service.dart';
 import '../auth/login_screen.dart';
 import 'admin_users_screen.dart';
+import 'admin_registration_requests_screen.dart';
+import 'admin_create_admin_screen.dart';
+import 'admin_faculty_assignments_screen.dart';
 import 'admin_attendance_report_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -109,10 +112,8 @@ class _AdminDashboardScreenState
   Future<void> _openPendingUsers() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const AdminUsersScreen(
-          initialStatus: 'PENDING',
-          title: 'Pending Users',
-        ),
+        builder: (_) =>
+            const AdminRegistrationRequestsScreen(),
       ),
     );
 
@@ -225,6 +226,39 @@ class _AdminDashboardScreenState
     await _loadDashboardStatistics();
   }
 
+  Future<void> _openFacultyAssignments() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            const AdminFacultyAssignmentsScreen(),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    await _loadDashboardStatistics();
+  }
+
+  Future<void> _openCreateAdministrator() async {
+    final created =
+        await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) =>
+            const AdminCreateAdminScreen(),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (created == true) {
+      await _loadDashboardStatistics();
+    }
+  }
+
   // ============================================================
   // ATTENDANCE REPORTS
   // ============================================================
@@ -301,24 +335,71 @@ class _AdminDashboardScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Row(
-        children: [
-          _buildSidebar(context),
-          Expanded(
-            child: Column(
-              children: [
-                _buildTopBar(context),
-                Expanded(
-                  child:
-                      _buildDashboardContent(context),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth < 960;
+
+        Widget mainContent({
+          VoidCallback? onMenuTap,
+        }) {
+          return Column(
+            children: [
+              _buildTopBar(
+                context,
+                onMenuTap: onMenuTap,
+                compact: compact,
+              ),
+              Expanded(
+                child:
+                    _buildDashboardContent(
+                  context,
+                  compact: compact,
                 ),
-              ],
-            ),
-          ),
-        ],
-      ),
+              ),
+            ],
+          );
+        }
+
+        return Scaffold(
+          backgroundColor:
+              AppColors.background,
+          drawer: compact
+              ? Drawer(
+                  width: 290,
+                  child: _buildSidebar(
+                    context,
+                    width: double.infinity,
+                  ),
+                )
+              : null,
+          body: compact
+              ? Builder(
+                  builder: (
+                    scaffoldContext,
+                  ) {
+                    return mainContent(
+                      onMenuTap: () {
+                        Scaffold.of(
+                          scaffoldContext,
+                        ).openDrawer();
+                      },
+                    );
+                  },
+                )
+              : Row(
+                  children: [
+                    _buildSidebar(
+                      context,
+                    ),
+                    Expanded(
+                      child:
+                          mainContent(),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 
@@ -327,10 +408,11 @@ class _AdminDashboardScreenState
   // ============================================================
 
   Widget _buildSidebar(
-    BuildContext context,
-  ) {
+    BuildContext context, {
+    double width = 250,
+  }) {
     return Container(
-      width: 250,
+      width: width,
       color: AppColors.primaryDark,
       child: SafeArea(
         child: Column(
@@ -412,6 +494,20 @@ class _AdminDashboardScreenState
               title: 'Faculty',
               selected: false,
               onTap: _openFaculty,
+            ),
+
+            _buildSidebarItem(
+              icon: Icons.assignment_ind_rounded,
+              title: 'Faculty Assignments',
+              selected: false,
+              onTap: _openFacultyAssignments,
+            ),
+
+            _buildSidebarItem(
+              icon: Icons.admin_panel_settings_rounded,
+              title: 'Create Admin',
+              selected: false,
+              onTap: _openCreateAdministrator,
             ),
 
             _buildSidebarItem(
@@ -572,12 +668,14 @@ class _AdminDashboardScreenState
   // ============================================================
 
   Widget _buildTopBar(
-    BuildContext context,
-  ) {
+    BuildContext context, {
+    VoidCallback? onMenuTap,
+    bool compact = false,
+  }) {
     return Container(
-      height: 76,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 28,
+      height: compact ? 64 : 76,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 28,
       ),
       decoration: BoxDecoration(
         color: AppColors.white,
@@ -589,14 +687,29 @@ class _AdminDashboardScreenState
       ),
       child: Row(
         children: [
-          const Text(
-            'Admin Dashboard',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+          if (onMenuTap != null)
+            IconButton(
+              tooltip: 'Open menu',
+              onPressed: onMenuTap,
+              icon: const Icon(
+                Icons.menu_rounded,
+              ),
+            ),
+
+          Expanded(
+            child: Text(
+              'Admin Dashboard',
+              maxLines: 1,
+              overflow:
+                  TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize:
+                    compact ? 18 : 24,
+                fontWeight:
+                    FontWeight.bold,
+              ),
             ),
           ),
-          const Spacer(),
 
           IconButton(
             tooltip: 'Refresh dashboard',
@@ -608,49 +721,58 @@ class _AdminDashboardScreenState
             ),
           ),
 
-          const SizedBox(width: 4),
+          if (!compact) ...[
+            const SizedBox(width: 4),
 
-          IconButton(
-            tooltip: 'Notifications',
-            onPressed: _showNotifications,
-            icon: const Icon(
-              Icons.notifications_none_rounded,
+            IconButton(
+              tooltip: 'Notifications',
+              onPressed:
+                  _showNotifications,
+              icon: const Icon(
+                Icons.notifications_none_rounded,
+              ),
             ),
-          ),
 
-          const SizedBox(width: 8),
+            const SizedBox(width: 8),
+          ],
 
           InkWell(
             onTap: _showAdminProfile,
             borderRadius:
                 BorderRadius.circular(25),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(
                 horizontal: 6,
                 vertical: 4,
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
+                  const CircleAvatar(
                     radius: 20,
                     child: Icon(
                       Icons.person_rounded,
                     ),
                   ),
-                  SizedBox(width: 10),
-                  Text(
-                    'Administrator',
-                    style: TextStyle(
-                      fontWeight:
-                          FontWeight.w600,
+                  if (!compact) ...[
+                    const SizedBox(width: 10),
+                    const Text(
+                      'Administrator',
+                      style: TextStyle(
+                        fontWeight:
+                            FontWeight.w600,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
           ),
 
-          const SizedBox(width: 20),
+          SizedBox(
+            width:
+                compact ? 4 : 20,
+          ),
         ],
       ),
     );
@@ -661,8 +783,9 @@ class _AdminDashboardScreenState
   // ============================================================
 
   Widget _buildDashboardContent(
-    BuildContext context,
-  ) {
+    BuildContext context, {
+    bool compact = false,
+  }) {
     if (_isLoading) {
       return const Center(
         child: CircularProgressIndicator(),
@@ -685,16 +808,20 @@ class _AdminDashboardScreenState
       child: SingleChildScrollView(
         physics:
             const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(28),
+        padding: EdgeInsets.all(
+          compact ? 14 : 28,
+        ),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Welcome, Administrator',
               style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
+                fontSize:
+                    compact ? 22 : 28,
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
 
@@ -1076,6 +1203,26 @@ class _AdminDashboardScreenState
               subtitle:
                   'View faculty accounts',
               onTap: _openFaculty,
+            ),
+
+            const SizedBox(height: 12),
+
+            _buildActionButton(
+              icon: Icons.assignment_ind_rounded,
+              title: 'Faculty Assignments',
+              subtitle:
+                  'Assign Semester, Section and Subject to Faculty',
+              onTap: _openFacultyAssignments,
+            ),
+
+            const SizedBox(height: 12),
+
+            _buildActionButton(
+              icon: Icons.admin_panel_settings_rounded,
+              title: 'Create Administrator',
+              subtitle:
+                  'Create another secure administrator account',
+              onTap: _openCreateAdministrator,
             ),
 
             const SizedBox(height: 12),

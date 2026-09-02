@@ -1,10 +1,10 @@
-
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 
 import '../../models/admin_user.dart';
 import '../../services/admin_service.dart';
+import 'admin_registration_requests_screen.dart';
 
 class AdminUsersScreen extends StatefulWidget {
   final String? initialStatus;
@@ -146,6 +146,480 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     }
 
     return 'Unknown User';
+  }
+
+  // ============================================================
+  // REVIEW PUBLIC REGISTRATION
+  // ============================================================
+
+  Future<void> _reviewRegistration(
+    AdminUser user,
+  ) async {
+    final role =
+        user.roleName.trim().toUpperCase();
+
+    if (role != 'STUDENT' &&
+        role != 'FACULTY') {
+      _showMessage(
+        'This pending account is not a Student or Faculty registration request.',
+        isError: true,
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            AdminRegistrationRequestsScreen(
+          initialRole: role,
+        ),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    await _loadUsers();
+  }
+
+  // ============================================================
+  // STUDENT FACE PROFILE
+  // ============================================================
+
+  int? _findIntByKey(
+    dynamic value,
+    String key,
+  ) {
+    if (value is Map) {
+      if (value.containsKey(key)) {
+        final raw = value[key];
+
+        if (raw is int) {
+          return raw;
+        }
+
+        if (raw is num) {
+          return raw.toInt();
+        }
+
+        final parsed = int.tryParse(
+          raw?.toString() ?? '',
+        );
+
+        if (parsed != null) {
+          return parsed;
+        }
+      }
+
+      for (final nested in value.values) {
+        final result = _findIntByKey(
+          nested,
+          key,
+        );
+
+        if (result != null) {
+          return result;
+        }
+      }
+    }
+
+    if (value is List) {
+      for (final nested in value) {
+        final result = _findIntByKey(
+          nested,
+          key,
+        );
+
+        if (result != null) {
+          return result;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  Future<Map<String, dynamic>>
+      _loadStudentFaceProfile(
+    AdminUser user,
+  ) async {
+    final details = await _adminService
+        .getUserDetails(user.userId);
+
+    final studentId = _findIntByKey(
+      details,
+      'student_id',
+    );
+
+    if (studentId == null ||
+        studentId <= 0) {
+      throw Exception(
+        'Student profile ID could not be found for this account.',
+      );
+    }
+
+    return _adminService.getStudentFaceProfile(
+      studentId,
+    );
+  }
+
+  bool _adminFaceRegistered(
+    Map<String, dynamic> data,
+  ) {
+    return data['registered'] == true ||
+        data['is_registered'] == true ||
+        data['face_profile_id'] != null;
+  }
+
+  String _faceText(
+    Map<String, dynamic> data,
+    String key, {
+    String fallback = '-',
+  }) {
+    final value = data[key];
+
+    if (value == null) {
+      return fallback;
+    }
+
+    final text = value.toString().trim();
+
+    return text.isEmpty
+        ? fallback
+        : text;
+  }
+
+  String _formatFaceDateTime(
+    dynamic value,
+  ) {
+    if (value == null) {
+      return '-';
+    }
+
+    final raw = value.toString().trim();
+
+    if (raw.isEmpty) {
+      return '-';
+    }
+
+    final parsed = DateTime.tryParse(raw);
+
+    if (parsed == null) {
+      return raw;
+    }
+
+    final local = parsed.toLocal();
+
+    String twoDigits(int number) =>
+        number.toString().padLeft(2, '0');
+
+    return '${twoDigits(local.day)}/'
+        '${twoDigits(local.month)}/'
+        '${local.year} '
+        '${twoDigits(local.hour)}:'
+        '${twoDigits(local.minute)}';
+  }
+
+  Future<void> _showStudentFaceProfile(
+    AdminUser user,
+  ) async {
+    final role =
+        user.roleName.trim().toUpperCase();
+
+    if (role != 'STUDENT') {
+      _showMessage(
+        'Face-profile management is available only for Student accounts.',
+        isError: true,
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return FutureBuilder<Map<String, dynamic>>(
+          future: _loadStudentFaceProfile(user),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState ==
+                ConnectionState.waiting) {
+              return const AlertDialog(
+                title: Text('Student Face Profile'),
+                content: SizedBox(
+                  height: 90,
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return AlertDialog(
+                title: const Text(
+                  'Student Face Profile',
+                ),
+                content: Text(
+                  snapshot.error
+                          ?.toString()
+                          .replaceFirst(
+                            'Exception: ',
+                            '',
+                          ) ??
+                      'Unable to load face profile.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                    },
+                    child: const Text('Close'),
+                  ),
+                ],
+              );
+            }
+
+            final data =
+                snapshot.data ?? <String, dynamic>{};
+            final registered =
+                _adminFaceRegistered(data);
+            final studentId = _findIntByKey(
+              data,
+              'student_id',
+            );
+
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Icon(
+                    registered
+                        ? Icons.verified_user_rounded
+                        : Icons.face_retouching_off,
+                    color: registered
+                        ? AppColors.success
+                        : AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Student Face Profile',
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 520,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: registered
+                              ? AppColors.success.withValues(
+                                  alpha: 0.08,
+                                )
+                              : AppColors.surfaceSoft,
+                          borderRadius:
+                              BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          registered
+                              ? 'REGISTERED'
+                              : 'NOT REGISTERED',
+                          style: TextStyle(
+                            color: registered
+                                ? AppColors.success
+                                : AppColors.textSecondary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _buildDetailRow(
+                        'Student',
+                        _faceText(
+                          data,
+                          'full_name',
+                          fallback: _getUserName(user),
+                        ),
+                      ),
+                      _buildDetailRow(
+                        'Student ID',
+                        studentId?.toString() ?? '-',
+                      ),
+                      _buildDetailRow(
+                        'Enrollment',
+                        _faceText(
+                          data,
+                          'enrollment_number',
+                        ),
+                      ),
+                      if (registered) ...[
+                        _buildDetailRow(
+                          'Face Profile ID',
+                          _faceText(
+                            data,
+                            'face_profile_id',
+                          ),
+                        ),
+                        _buildDetailRow(
+                          'Model',
+                          _faceText(
+                            data,
+                            'embedding_model',
+                          ),
+                        ),
+                        _buildDetailRow(
+                          'Dimensions',
+                          _faceText(
+                            data,
+                            'embedding_dimensions',
+                          ),
+                        ),
+                        _buildDetailRow(
+                          'Verified',
+                          data['is_verified'] == true
+                              ? 'Yes'
+                              : 'No',
+                        ),
+                        _buildDetailRow(
+                          'Active',
+                          data['is_active'] == true
+                              ? 'Yes'
+                              : 'No',
+                        ),
+                        _buildDetailRow(
+                          'Registered At',
+                          _formatFaceDateTime(
+                            data['face_created_at'] ??
+                                data['created_at'],
+                          ),
+                        ),
+                        _buildDetailRow(
+                          'Updated At',
+                          _formatFaceDateTime(
+                            data['face_updated_at'] ??
+                                data['updated_at'],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Text(
+                        registered
+                            ? 'Reset removes only the Student face profile. The account and attendance history remain unchanged.'
+                            : 'This Student can register a face profile from the Student mobile app.',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: const Text('Close'),
+                ),
+                if (registered &&
+                    studentId != null &&
+                    studentId > 0)
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                      _confirmResetStudentFace(
+                        user: user,
+                        studentId: studentId,
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.restart_alt_rounded,
+                    ),
+                    label: const Text(
+                      'Reset Face Profile',
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmResetStudentFace({
+    required AdminUser user,
+    required int studentId,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Reset Face Profile',
+          ),
+          content: Text(
+            'Reset the registered face for "${_getUserName(user)}"? '
+            'This does not delete the Student account or attendance history. '
+            'The Student will be able to register a new face afterward.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: const Text('Reset'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      final result = await _adminService
+          .deleteStudentFaceProfile(studentId);
+
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        result['message']?.toString().trim().isNotEmpty ==
+                true
+            ? result['message'].toString()
+            : 'Student face profile reset successfully.',
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        error
+            .toString()
+            .replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    }
   }
 
   // ============================================================
@@ -929,11 +1403,32 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     AdminUser user,
     String status,
   ) {
+    final role =
+        user.roleName
+            .trim()
+            .toUpperCase();
+
+    final isPublicRegistration =
+        status == 'PENDING' &&
+            (role == 'STUDENT' ||
+                role == 'FACULTY');
+
     return PopupMenuButton<String>(
       tooltip: 'User actions',
       onSelected: (value) {
         if (value == 'details') {
           _showUserDetails(user);
+          return;
+        }
+
+        if (value ==
+            'review_registration') {
+          _reviewRegistration(user);
+          return;
+        }
+
+        if (value == 'face_profile') {
+          _showStudentFaceProfile(user);
           return;
         }
 
@@ -943,6 +1438,42 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         );
       },
       itemBuilder: (context) {
+        if (isPublicRegistration) {
+          return [
+            const PopupMenuItem<String>(
+              value: 'details',
+              child: ListTile(
+                leading: Icon(
+                  Icons
+                      .visibility_rounded,
+                ),
+                title:
+                    Text('View Details'),
+                contentPadding:
+                    EdgeInsets.zero,
+              ),
+            ),
+            const PopupMenuItem<String>(
+              value:
+                  'review_registration',
+              child: ListTile(
+                leading: Icon(
+                  Icons
+                      .fact_check_outlined,
+                ),
+                title: Text(
+                  'Review Registration',
+                ),
+                subtitle: Text(
+                  'Approve or reject using the registration review flow',
+                ),
+                contentPadding:
+                    EdgeInsets.zero,
+              ),
+            ),
+          ];
+        }
+
         return [
           const PopupMenuItem<String>(
             value: 'details',
@@ -950,18 +1481,38 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               leading: Icon(
                 Icons.visibility_rounded,
               ),
-              title: Text('View Details'),
+              title:
+                  Text('View Details'),
               contentPadding:
                   EdgeInsets.zero,
             ),
           ),
+
+          if (role == 'STUDENT')
+            const PopupMenuItem<String>(
+              value: 'face_profile',
+              child: ListTile(
+                leading: Icon(
+                  Icons.face_retouching_natural,
+                ),
+                title: Text(
+                  'Face Status / Reset',
+                ),
+                subtitle: Text(
+                  'View registration status or reset the face profile',
+                ),
+                contentPadding:
+                    EdgeInsets.zero,
+              ),
+            ),
 
           if (status != 'ACTIVE')
             const PopupMenuItem<String>(
               value: 'ACTIVE',
               child: ListTile(
                 leading: Icon(
-                  Icons.check_circle_rounded,
+                  Icons
+                      .check_circle_rounded,
                 ),
                 title: Text('Activate'),
                 contentPadding:
@@ -987,9 +1538,11 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               value: 'INACTIVE',
               child: ListTile(
                 leading: Icon(
-                  Icons.pause_circle_rounded,
+                  Icons
+                      .pause_circle_rounded,
                 ),
-                title: Text('Deactivate'),
+                title:
+                    Text('Deactivate'),
                 contentPadding:
                     EdgeInsets.zero,
               ),

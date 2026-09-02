@@ -293,38 +293,80 @@ class _FacultyDashboardScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor:
-          AppColors.background,
-      body: SafeArea(
-        child: Row(
-          children: [
-            _buildSidebar(),
-            Expanded(
-              child: Column(
-                children: [
-                  _buildTopBar(),
-                  Expanded(
-                    child: RefreshIndicator(
-                      onRefresh:
-                          _loadDashboard,
-                      child:
-                          SingleChildScrollView(
-                        physics:
-                            const AlwaysScrollableScrollPhysics(),
-                        padding:
-                            const EdgeInsets.all(24),
-                        child:
-                            _buildContent(),
-                      ),
-                    ),
-                  ),
-                ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth < 900;
+        final contentPadding =
+            compact ? 14.0 : 24.0;
+
+        Widget mainContent({
+          VoidCallback? onMenuTap,
+        }) {
+          return Column(
+            children: [
+              _buildTopBar(
+                onMenuTap: onMenuTap,
+                compact: compact,
               ),
-            ),
-          ],
-        ),
-      ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh:
+                      _loadDashboard,
+                  child:
+                      SingleChildScrollView(
+                    physics:
+                        const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.all(
+                      contentPadding,
+                    ),
+                    child:
+                        _buildContent(),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Scaffold(
+          backgroundColor:
+              AppColors.background,
+          drawer: compact
+              ? Drawer(
+                  width: 280,
+                  child: _buildSidebar(
+                    width: double.infinity,
+                  ),
+                )
+              : null,
+          body: SafeArea(
+            child: compact
+                ? Builder(
+                    builder: (
+                      scaffoldContext,
+                    ) {
+                      return mainContent(
+                        onMenuTap: () {
+                          Scaffold.of(
+                            scaffoldContext,
+                          ).openDrawer();
+                        },
+                      );
+                    },
+                  )
+                : Row(
+                    children: [
+                      _buildSidebar(),
+                      Expanded(
+                        child:
+                            mainContent(),
+                      ),
+                    ],
+                  ),
+          ),
+        );
+      },
     );
   }
 
@@ -332,9 +374,11 @@ class _FacultyDashboardScreenState
   // SIDEBAR
   // ============================================================
 
-  Widget _buildSidebar() {
+  Widget _buildSidebar({
+    double width = 205,
+  }) {
     return Container(
-      width: 205,
+      width: width,
       color: AppColors.primaryDark,
       child: Column(
         children: [
@@ -564,26 +608,41 @@ class _FacultyDashboardScreenState
   // TOP BAR
   // ============================================================
 
-  Widget _buildTopBar() {
+  Widget _buildTopBar({
+    VoidCallback? onMenuTap,
+    bool compact = false,
+  }) {
     return Container(
       height: 62,
       color: AppColors.white,
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 20,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 20,
       ),
       child: Row(
         children: [
-          const Text(
-            'Faculty Dashboard',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight:
-                  FontWeight.w600,
+          if (onMenuTap != null)
+            IconButton(
+              tooltip: 'Open menu',
+              onPressed: onMenuTap,
+              icon: const Icon(
+                Icons.menu_rounded,
+              ),
+            ),
+
+          Expanded(
+            child: Text(
+              'Faculty Dashboard',
+              maxLines: 1,
+              overflow:
+                  TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize:
+                    compact ? 17 : 20,
+                fontWeight:
+                    FontWeight.w600,
+              ),
             ),
           ),
-
-          const Spacer(),
 
           IconButton(
             tooltip: 'Refresh',
@@ -597,22 +656,23 @@ class _FacultyDashboardScreenState
             ),
           ),
 
-          IconButton(
-            tooltip: 'Notifications',
-            onPressed: () {},
-            icon: const Icon(
-              Icons.notifications_none_rounded,
-              size: 22,
+          if (!compact)
+            IconButton(
+              tooltip: 'Notifications',
+              onPressed: () {},
+              icon: const Icon(
+                Icons.notifications_none_rounded,
+                size: 22,
+              ),
             ),
-          ),
 
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
 
-          CircleAvatar(
+          const CircleAvatar(
             radius: 17,
             backgroundColor:
                 AppColors.surfaceSoft,
-            child: const Icon(
+            child: Icon(
               Icons.person_rounded,
               color:
                   AppColors.primary,
@@ -620,28 +680,30 @@ class _FacultyDashboardScreenState
             ),
           ),
 
-          const SizedBox(width: 10),
+          if (!compact) ...[
+            const SizedBox(width: 10),
 
-          Flexible(
-            child: Text(
-              _value(
-                'full_name',
-                fallback: 'Faculty',
-              ),
-              maxLines: 1,
-              overflow:
-                  TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                color:
-                    AppColors.textPrimary,
-                fontWeight:
-                    FontWeight.w500,
+            Flexible(
+              child: Text(
+                _value(
+                  'full_name',
+                  fallback: 'Faculty',
+                ),
+                maxLines: 1,
+                overflow:
+                    TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color:
+                      AppColors.textPrimary,
+                  fontWeight:
+                      FontWeight.w500,
+                ),
               ),
             ),
-          ),
 
-          const SizedBox(width: 4),
+            const SizedBox(width: 4),
+          ],
         ],
       ),
     );

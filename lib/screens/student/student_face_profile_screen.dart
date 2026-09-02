@@ -68,8 +68,24 @@ class _StudentFaceProfileScreenState
 
     WidgetsBinding.instance.addObserver(this);
 
-    _loadFaceStatus();
-    _initializeCamera();
+    _prepareScreen();
+  }
+
+  Future<void> _prepareScreen() async {
+    await _loadFaceStatus();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (_faceRegistered()) {
+      setState(() {
+        _initializingCamera = false;
+      });
+      return;
+    }
+
+    await _initializeCamera();
   }
 
   // ============================================================
@@ -80,23 +96,25 @@ class _StudentFaceProfileScreenState
   void didChangeAppLifecycleState(
     AppLifecycleState state,
   ) {
-    final controller =
-        _cameraController;
-
-    if (controller == null ||
-        !controller.value.isInitialized) {
-      return;
-    }
-
     if (state ==
         AppLifecycleState.inactive) {
-      controller.dispose();
+      final controller =
+          _cameraController;
+
       _cameraController = null;
+
+      if (controller != null) {
+        unawaited(
+          controller.dispose(),
+        );
+      }
+
       return;
     }
 
     if (state ==
-        AppLifecycleState.resumed) {
+            AppLifecycleState.resumed &&
+        !_faceRegistered()) {
       _initializeCamera();
     }
   }
@@ -138,6 +156,35 @@ class _StudentFaceProfileScreenState
       // A missing face profile may be a normal state for
       // a student who has not registered yet.
     }
+  }
+
+  bool _faceRegistered() {
+    final status = _faceStatus;
+
+    if (status == null) {
+      return false;
+    }
+
+    return status['registered'] == true ||
+        status['is_registered'] == true ||
+        status['face_profile_id'] != null;
+  }
+
+  Future<void> _stopCamera() async {
+    final controller = _cameraController;
+    _cameraController = null;
+
+    if (controller != null) {
+      await controller.dispose();
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _initializingCamera = false;
+    });
   }
 
   // ============================================================
@@ -599,6 +646,10 @@ class _StudentFaceProfileScreenState
 
       await _loadFaceStatus();
 
+      if (_faceRegistered()) {
+        await _stopCamera();
+      }
+
       if (!mounted) {
         return;
       }
@@ -869,9 +920,11 @@ class _StudentFaceProfileScreenState
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Register Your Face',
-                    style: TextStyle(
+                  Text(
+                    _faceRegistered()
+                        ? 'Face Profile'
+                        : 'Register Your Face',
+                    style: const TextStyle(
                       fontSize: 26,
                       fontWeight:
                           FontWeight.w700,
@@ -883,8 +936,9 @@ class _StudentFaceProfileScreenState
                   ),
 
                   Text(
-                    'Your face is processed locally. Only a numeric '
-                    'embedding is sent for registration.',
+                    _faceRegistered()
+                        ? 'Your face profile is already registered. Registration controls are hidden to prevent accidental replacement.'
+                        : 'Your face is processed locally. Only a numeric embedding is sent for registration.',
                     style: TextStyle(
                       color:
                           AppColors.textSecondary,
@@ -897,52 +951,63 @@ class _StudentFaceProfileScreenState
 
                   _buildFaceStatusCard(),
 
-                  const SizedBox(
-                    height: 16,
-                  ),
+                  if (!_loadingStatus &&
+                      _faceRegistered()) ...[
+                    const SizedBox(
+                      height: 16,
+                    ),
+                    _buildRegisteredFaceNotice(),
+                  ],
 
-                  _buildCameraCard(),
-
-                  const SizedBox(
-                    height: 16,
-                  ),
-
-                  _buildInstructions(),
-
-                  if (_brightnessScore !=
-                          null ||
-                      _sharpnessScore !=
-                          null) ...[
+                  if (!_loadingStatus &&
+                      !_faceRegistered()) ...[
                     const SizedBox(
                       height: 16,
                     ),
 
-                    _buildQualityCard(),
-                  ],
+                    _buildCameraCard(),
 
-                  if (_errorMessage !=
-                      null) ...[
                     const SizedBox(
                       height: 16,
                     ),
 
-                    _buildErrorCard(),
-                  ],
+                    _buildInstructions(),
 
-                  if (_registrationResult !=
-                      null) ...[
+                    if (_brightnessScore !=
+                            null ||
+                        _sharpnessScore !=
+                            null) ...[
+                      const SizedBox(
+                        height: 16,
+                      ),
+
+                      _buildQualityCard(),
+                    ],
+
+                    if (_errorMessage !=
+                        null) ...[
+                      const SizedBox(
+                        height: 16,
+                      ),
+
+                      _buildErrorCard(),
+                    ],
+
+                    if (_registrationResult !=
+                        null) ...[
+                      const SizedBox(
+                        height: 16,
+                      ),
+
+                      _buildRegistrationResultCard(),
+                    ],
+
                     const SizedBox(
-                      height: 16,
+                      height: 20,
                     ),
 
-                    _buildRegistrationResultCard(),
+                    _buildButtons(),
                   ],
-
-                  const SizedBox(
-                    height: 20,
-                  ),
-
-                  _buildButtons(),
                 ],
               ),
             ),
@@ -1076,6 +1141,41 @@ class _StudentFaceProfileScreenState
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildRegisteredFaceNotice() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(
+          alpha: 0.07,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.success.withValues(
+            alpha: 0.22,
+          ),
+        ),
+      ),
+      child: const Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.lock_person_rounded,
+            color: AppColors.success,
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Face registration is locked because a face profile already exists. '
+              'If the profile is incorrect or needs to be replaced, an Administrator must reset it first.',
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1275,7 +1375,7 @@ class _StudentFaceProfileScreenState
                               ?.lensDirection ==
                           CameraLensDirection
                               .front
-                      ? 'Front camera • Auto focus • Auto exposure'
+                      ? 'Front camera â€¢ Auto focus â€¢ Auto exposure'
                       : 'Camera ready',
                   textAlign:
                       TextAlign.center,

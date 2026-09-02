@@ -4,6 +4,8 @@ import '../../core/storage/token_storage.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/auth_service.dart';
 
+import 'registration_screen.dart';
+
 import '../admin/admin_dashboard_screen.dart';
 import '../faculty/faculty_dashboard_screen.dart';
 import '../student/student_dashboard_screen.dart'
@@ -234,15 +236,44 @@ class _LoginScreenState
   String _cleanErrorMessage(
     Object error,
   ) {
-    final message =
-        error.toString();
+    var message = error.toString().trim();
 
     if (message.startsWith(
       'Exception: ',
     )) {
-      return message.substring(
+      message = message.substring(
         'Exception: '.length,
-      );
+      ).trim();
+    }
+
+    final lowerMessage =
+        message.toLowerCase();
+
+    // Keep technical network details out of the normal UI.
+    if (lowerMessage.contains(
+          'failed to fetch',
+        ) ||
+        lowerMessage.contains(
+          'clientexception',
+        ) ||
+        lowerMessage.contains(
+          'xmlhttprequest error',
+        ) ||
+        lowerMessage.contains(
+          'socketexception',
+        ) ||
+        lowerMessage.contains(
+          'connection refused',
+        ) ||
+        lowerMessage.contains(
+          'network request failed',
+        )) {
+      return 'Unable to connect to the server. '
+          'Please check your internet connection and try again.';
+    }
+
+    if (message.isEmpty) {
+      return 'Something went wrong. Please try again.';
     }
 
     return message;
@@ -255,6 +286,7 @@ class _LoginScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor:
           AppColors.background,
       body: SafeArea(
@@ -263,65 +295,247 @@ class _LoginScreenState
             context,
             constraints,
           ) {
-            final isDesktop =
-                constraints.maxWidth >= 900;
+            final width =
+                constraints.maxWidth;
 
-            if (isDesktop) {
-              return Row(
-                children: [
-                  Expanded(
-                    flex: 5,
-                    child:
-                        _buildBrandPanel(
-                      desktop: true,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 4,
-                    child: Container(
-                      color:
-                          AppColors.background,
-                      alignment:
-                          Alignment.center,
-                      child:
-                          SingleChildScrollView(
-                        padding:
-                            const EdgeInsets
-                                .all(
-                          40,
-                        ),
-                        child:
-                            _buildLoginCard(),
-                      ),
-                    ),
-                  ),
-                ],
-              );
+            if (width >= 900) {
+              return _buildDesktopLayout();
             }
 
-            return SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildBrandPanel(
-                    desktop: false,
-                  ),
-                  Padding(
-                    padding:
-                        const EdgeInsets
-                            .fromLTRB(
-                      20,
-                      24,
-                      20,
-                      32,
-                    ),
-                    child:
-                        _buildLoginCard(),
-                  ),
-                ],
-              ),
-            );
+            if (width >= 600) {
+              return _buildTabletLayout();
+            }
+
+            return _buildMobileLayout();
           },
         ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // DESKTOP LAYOUT
+  // ============================================================
+
+  Widget _buildDesktopLayout() {
+    return Row(
+      children: [
+        Expanded(
+          flex: 5,
+          child: _buildBrandPanel(
+            desktop: true,
+          ),
+        ),
+        Expanded(
+          flex: 4,
+          child: Container(
+            color: AppColors.background,
+            alignment: Alignment.center,
+            child: SingleChildScrollView(
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              padding:
+                  const EdgeInsets.all(40),
+              child: _buildLoginCard(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // TABLET LAYOUT
+  // ============================================================
+
+  Widget _buildTabletLayout() {
+    return SingleChildScrollView(
+      keyboardDismissBehavior:
+          ScrollViewKeyboardDismissBehavior.onDrag,
+      child: Column(
+        children: [
+          _buildBrandPanel(
+            desktop: false,
+          ),
+          Padding(
+            padding:
+                const EdgeInsets.fromLTRB(
+              28,
+              28,
+              28,
+              40,
+            ),
+            child: Center(
+              child: _buildLoginCard(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // MOBILE LAYOUT
+  // ============================================================
+
+  Widget _buildMobileLayout() {
+    return SingleChildScrollView(
+      keyboardDismissBehavior:
+          ScrollViewKeyboardDismissBehavior.onDrag,
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.stretch,
+        children: [
+          _buildMobileBrandHeader(),
+          Padding(
+            padding:
+                const EdgeInsets.fromLTRB(
+              16,
+              18,
+              16,
+              28,
+            ),
+            child: _buildLoginCard(
+              compact: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // MOBILE BRAND HEADER
+  // ============================================================
+
+  Widget _buildMobileBrandHeader() {
+    return Container(
+      width: double.infinity,
+      padding:
+          const EdgeInsets.fromLTRB(
+        18,
+        18,
+        18,
+        20,
+      ),
+      decoration:
+          const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primaryDark,
+            AppColors.primary,
+          ],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -58,
+            right: -48,
+            child: Container(
+              width: 150,
+              height: 150,
+              decoration:
+                  BoxDecoration(
+                color: AppColors.accent
+                    .withValues(
+                  alpha: 0.16,
+                ),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -80,
+            left: -62,
+            child: Container(
+              width: 170,
+              height: 170,
+              decoration:
+                  BoxDecoration(
+                color: Colors.white
+                    .withValues(
+                  alpha: 0.05,
+                ),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration:
+                    BoxDecoration(
+                  color: Colors.white,
+                  borderRadius:
+                      BorderRadius.circular(
+                    14,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.school_rounded,
+                  color: AppColors.primary,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(
+                width: 13,
+              ),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'GHRCE Smart Attendance',
+                      maxLines: 1,
+                      overflow:
+                          TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight:
+                            FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(
+                      height: 4,
+                    ),
+                    Text(
+                      'Smart Anti-Proxy Attendance System',
+                      maxLines: 2,
+                      overflow:
+                          TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight:
+                            FontWeight.w500,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(
+                width: 8,
+              ),
+              Container(
+                width: 9,
+                height: 9,
+                decoration:
+                    const BoxDecoration(
+                  color: AppColors.accent,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -675,7 +889,9 @@ class _LoginScreenState
   // LOGIN CARD
   // ============================================================
 
-  Widget _buildLoginCard() {
+  Widget _buildLoginCard({
+    bool compact = false,
+  }) {
     return ConstrainedBox(
       constraints:
           const BoxConstraints(
@@ -684,9 +900,8 @@ class _LoginScreenState
       child: Card(
         elevation: 0,
         child: Padding(
-          padding:
-              const EdgeInsets.all(
-            32,
+          padding: EdgeInsets.all(
+            compact ? 20 : 32,
           ),
           child: Form(
             key: _formKey,
@@ -766,8 +981,8 @@ class _LoginScreenState
                   ],
                 ),
 
-                const SizedBox(
-                  height: 30,
+                SizedBox(
+                  height: compact ? 22 : 30,
                 ),
 
                 const Text(
@@ -800,8 +1015,8 @@ class _LoginScreenState
                   ),
                 ),
 
-                const SizedBox(
-                  height: 24,
+                SizedBox(
+                  height: compact ? 18 : 24,
                 ),
 
                 // ------------------------------------------------
@@ -872,8 +1087,8 @@ class _LoginScreenState
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 20,
+                  SizedBox(
+                    height: compact ? 16 : 20,
                   ),
                 ],
 
@@ -932,8 +1147,8 @@ class _LoginScreenState
                   },
                 ),
 
-                const SizedBox(
-                  height: 18,
+                SizedBox(
+                  height: compact ? 15 : 18,
                 ),
 
                 // ------------------------------------------------
@@ -1011,8 +1226,8 @@ class _LoginScreenState
                   },
                 ),
 
-                const SizedBox(
-                  height: 28,
+                SizedBox(
+                  height: compact ? 22 : 28,
                 ),
 
                 // ------------------------------------------------
@@ -1039,36 +1254,97 @@ class _LoginScreenState
                                   Colors.white,
                             ),
                           )
-                        : const Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment
-                                    .center,
-                            children: [
-                              Icon(
-                                Icons
-                                    .login_rounded,
-                                size: 20,
-                              ),
-                              SizedBox(
-                                width: 9,
-                              ),
-                              Text(
-                                'Sign In',
-                                style:
-                                    TextStyle(
-                                  fontSize: 16,
-                                  fontWeight:
-                                      FontWeight
-                                          .w700,
+                        : const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize:
+                                  MainAxisSize.min,
+                              mainAxisAlignment:
+                                  MainAxisAlignment
+                                      .center,
+                              children: [
+                                Icon(
+                                  Icons
+                                      .login_rounded,
+                                  size: 20,
                                 ),
-                              ),
-                            ],
+                                SizedBox(
+                                  width: 9,
+                                ),
+                                Text(
+                                  'Sign In',
+                                  style:
+                                      TextStyle(
+                                    fontSize: 16,
+                                    fontWeight:
+                                        FontWeight
+                                            .w700,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                   ),
                 ),
 
+                SizedBox(
+                  height: compact ? 14 : 18,
+                ),
+
+                const Text(
+                  'New to the system?',
+                  textAlign:
+                      TextAlign.center,
+                  style:
+                      TextStyle(
+                    color:
+                        AppColors
+                            .textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+
                 const SizedBox(
-                  height: 25,
+                  height: 8,
+                ),
+
+                SizedBox(
+                  height: 48,
+                  child:
+                      OutlinedButton.icon(
+                    onPressed:
+                        _isLoading
+                            ? null
+                            : () async {
+                                await Navigator.of(
+                                  context,
+                                ).push(
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const RegistrationScreen(),
+                                  ),
+                                );
+                              },
+                    icon:
+                        const Icon(
+                      Icons
+                          .person_add_alt_1_rounded,
+                    ),
+                    label:
+                        const Text(
+                      'Create Account',
+                      style:
+                          TextStyle(
+                        fontWeight:
+                            FontWeight
+                                .w700,
+                      ),
+                    ),
+                  ),
+                ),
+
+                SizedBox(
+                  height: compact ? 20 : 25,
                 ),
 
                 // ------------------------------------------------
@@ -1111,8 +1387,8 @@ class _LoginScreenState
                   ],
                 ),
 
-                const SizedBox(
-                  height: 18,
+                SizedBox(
+                  height: compact ? 14 : 18,
                 ),
 
                 const Text(

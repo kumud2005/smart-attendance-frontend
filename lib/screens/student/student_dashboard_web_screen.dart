@@ -434,42 +434,82 @@ class _StudentDashboardScreenState
   Widget build(
     BuildContext context,
   ) {
-    return Scaffold(
-      backgroundColor:
-          AppColors.background,
-      body: SafeArea(
-        child: Row(
-          children: [
-            _buildSidebar(),
-            Expanded(
-              child: Column(
-                children: [
-                  _buildTopBar(),
-                  Expanded(
-                    child: RefreshIndicator(
-                      onRefresh:
-                          _refreshCurrentPage,
-                      child:
-                          SingleChildScrollView(
-                        physics:
-                            const AlwaysScrollableScrollPhysics(),
-                        padding:
-                            const EdgeInsets.all(
-                          24,
-                        ),
-                        child:
-                            _selectedPage == 0
-                                ? _buildDashboardContent()
-                                : _buildReportsContent(),
-                      ),
-                    ),
-                  ),
-                ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth < 900;
+        final contentPadding =
+            compact ? 14.0 : 24.0;
+
+        Widget mainContent({
+          VoidCallback? onMenuTap,
+        }) {
+          return Column(
+            children: [
+              _buildTopBar(
+                onMenuTap: onMenuTap,
+                compact: compact,
               ),
-            ),
-          ],
-        ),
-      ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh:
+                      _refreshCurrentPage,
+                  child:
+                      SingleChildScrollView(
+                    physics:
+                        const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.all(
+                      contentPadding,
+                    ),
+                    child:
+                        _selectedPage == 0
+                            ? _buildDashboardContent()
+                            : _buildReportsContent(),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Scaffold(
+          backgroundColor:
+              AppColors.background,
+          drawer: compact
+              ? Drawer(
+                  width: 280,
+                  child: _buildSidebar(
+                    width: double.infinity,
+                  ),
+                )
+              : null,
+          body: SafeArea(
+            child: compact
+                ? Builder(
+                    builder: (
+                      scaffoldContext,
+                    ) {
+                      return mainContent(
+                        onMenuTap: () {
+                          Scaffold.of(
+                            scaffoldContext,
+                          ).openDrawer();
+                        },
+                      );
+                    },
+                  )
+                : Row(
+                    children: [
+                      _buildSidebar(),
+                      Expanded(
+                        child:
+                            mainContent(),
+                      ),
+                    ],
+                  ),
+          ),
+        );
+      },
     );
   }
 
@@ -477,9 +517,11 @@ class _StudentDashboardScreenState
   // SIDEBAR
   // ============================================================
 
-  Widget _buildSidebar() {
+  Widget _buildSidebar({
+    double width = 205,
+  }) {
     return Container(
-      width: 205,
+      width: width,
       color:
           AppColors.primaryDark,
       child: Column(
@@ -655,27 +697,41 @@ class _StudentDashboardScreenState
   // TOP BAR
   // ============================================================
 
-  Widget _buildTopBar() {
+  Widget _buildTopBar({
+    VoidCallback? onMenuTap,
+    bool compact = false,
+  }) {
     return Container(
       height: 62,
       color: AppColors.white,
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 20,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 20,
       ),
       child: Row(
         children: [
-          Text(
-            _selectedPage == 0
-                ? 'Student Dashboard'
-                : 'Attendance Reports',
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight:
-                  FontWeight.w600,
+          if (onMenuTap != null)
+            IconButton(
+              tooltip: 'Open menu',
+              onPressed: onMenuTap,
+              icon: const Icon(
+                Icons.menu_rounded,
+              ),
+            ),
+          Expanded(
+            child: Text(
+              _selectedPage == 0
+                  ? 'Student Dashboard'
+                  : 'Attendance Reports',
+              maxLines: 1,
+              overflow:
+                  TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: compact ? 17 : 20,
+                fontWeight:
+                    FontWeight.w600,
+              ),
             ),
           ),
-          const Spacer(),
           IconButton(
             tooltip: 'Refresh',
             onPressed:
@@ -690,7 +746,7 @@ class _StudentDashboardScreenState
             ),
           ),
           const SizedBox(
-            width: 8,
+            width: 4,
           ),
           const CircleAvatar(
             radius: 17,
@@ -703,27 +759,29 @@ class _StudentDashboardScreenState
               size: 20,
             ),
           ),
-          const SizedBox(
-            width: 10,
-          ),
-          Flexible(
-            child: Text(
-              _value(
-                'full_name',
-                fallback: 'Student',
-              ),
-              maxLines: 1,
-              overflow:
-                  TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                color:
-                    AppColors.textPrimary,
-                fontWeight:
-                    FontWeight.w500,
+          if (!compact) ...[
+            const SizedBox(
+              width: 10,
+            ),
+            Flexible(
+              child: Text(
+                _value(
+                  'full_name',
+                  fallback: 'Student',
+                ),
+                maxLines: 1,
+                overflow:
+                    TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color:
+                      AppColors.textPrimary,
+                  fontWeight:
+                      FontWeight.w500,
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -802,35 +860,17 @@ class _StudentDashboardScreenState
   }
 
   Widget _buildWebAccessCard() {
-    return Container(
-      width: double.infinity,
-      padding:
-          const EdgeInsets.all(
-        20,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius:
-            BorderRadius.circular(
-          12,
-        ),
-        border: Border.all(
-          color:
-              const Color(
-            0xFFE7E4ED,
-          ),
-        ),
-      ),
-      child: Row(
+    Widget infoRow() {
+      return Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           Container(
             width: 50,
             height: 50,
             decoration: BoxDecoration(
               color:
-                  const Color(
-                0xFFE8EAF8,
-              ),
+                  AppColors.surfaceSoft,
               borderRadius:
                   BorderRadius.circular(
                 12,
@@ -870,19 +910,77 @@ class _StudentDashboardScreenState
               ],
             ),
           ),
-          const SizedBox(
-            width: 12,
-          ),
-          OutlinedButton.icon(
-            onPressed: _openReports,
-            icon: const Icon(
-              Icons.visibility_rounded,
-            ),
-            label: const Text(
-              'View Report',
-            ),
-          ),
         ],
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding:
+          const EdgeInsets.all(
+        20,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius:
+            BorderRadius.circular(
+          12,
+        ),
+        border: Border.all(
+          color:
+              AppColors.border,
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (
+          context,
+          constraints,
+        ) {
+          if (constraints.maxWidth <
+              560) {
+            return Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.stretch,
+              children: [
+                infoRow(),
+                const SizedBox(
+                  height: 16,
+                ),
+                OutlinedButton.icon(
+                  onPressed:
+                      _openReports,
+                  icon: const Icon(
+                    Icons.visibility_rounded,
+                  ),
+                  label: const Text(
+                    'View Report',
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(
+                child: infoRow(),
+              ),
+              const SizedBox(
+                width: 12,
+              ),
+              OutlinedButton.icon(
+                onPressed:
+                    _openReports,
+                icon: const Icon(
+                  Icons.visibility_rounded,
+                ),
+                label: const Text(
+                  'View Report',
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
