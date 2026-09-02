@@ -380,7 +380,8 @@ class _FacultyDashboardScreenState
     return Container(
       width: width,
       color: AppColors.primaryDark,
-      child: Column(
+      child: SafeArea(
+        child: Column(
         children: [
           Container(
             height: 128,
@@ -540,10 +541,10 @@ class _FacultyDashboardScreenState
             ),
           ),
         ],
+        ),
       ),
     );
   }
-
   Widget _sidebarItem({
     required IconData icon,
     required String title,
@@ -852,63 +853,53 @@ class _FacultyDashboardScreenState
 
   Widget _buildStatistics() {
     return LayoutBuilder(
-      builder:
-          (context, constraints) {
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth < 700;
+
         final cards = [
           _statCard(
-            icon:
-                Icons.menu_book_rounded,
+            icon: Icons.menu_book_rounded,
             title: 'My Subjects',
-            value:
-                _intValue(
+            value: _intValue(
               'subject_count',
             ).toString(),
+            compact: compact,
           ),
-
           _statCard(
-            icon:
-                Icons.groups_rounded,
+            icon: Icons.groups_rounded,
             title: 'My Classes',
-            value:
-                _intValue(
+            value: _intValue(
               'section_count',
             ).toString(),
+            compact: compact,
           ),
-
           _statCard(
-            icon:
-                Icons.school_rounded,
+            icon: Icons.school_rounded,
             title: 'Students',
-            value:
-                _intValue(
+            value: _intValue(
               'student_count',
             ).toString(),
+            compact: compact,
           ),
-
           _statCard(
-            icon:
-                Icons.fact_check_rounded,
+            icon: Icons.fact_check_rounded,
             title: 'Attendance',
-            value:
-                _intValue(
+            value: _intValue(
               'attendance_count',
             ).toString(),
+            compact: compact,
           ),
         ];
 
-        if (constraints.maxWidth <
-            700) {
+        if (compact) {
           return Column(
             children: [
-              for (
-                int i = 0;
-                i < cards.length;
-                i++
-              ) ...[
+              for (int i = 0;
+                  i < cards.length;
+                  i++) ...[
                 cards[i],
-
-                if (i !=
-                    cards.length - 1)
+                if (i != cards.length - 1)
                   const SizedBox(
                     height: 12,
                   ),
@@ -919,18 +910,13 @@ class _FacultyDashboardScreenState
 
         return Row(
           children: [
-            for (
-              int i = 0;
-              i < cards.length;
-              i++
-            ) ...[
+            for (int i = 0;
+                i < cards.length;
+                i++) ...[
               Expanded(
-                child:
-                    cards[i],
+                child: cards[i],
               ),
-
-              if (i !=
-                  cards.length - 1)
+              if (i != cards.length - 1)
                 const SizedBox(
                   width: 12,
                 ),
@@ -945,80 +931,108 @@ class _FacultyDashboardScreenState
     required IconData icon,
     required String title,
     required String value,
+    bool compact = false,
   }) {
     return Container(
-      padding:
-          const EdgeInsets.all(18),
-      decoration:
-          BoxDecoration(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 16 : 18,
+        vertical: compact ? 14 : 18,
+      ),
+      decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius:
             BorderRadius.circular(12),
         border: Border.all(
-          color:
-              AppColors.border,
+          color: AppColors.border,
         ),
         boxShadow: const [
           BoxShadow(
-            color:
-                Color(0x10000000),
+            color: Color(0x10000000),
             blurRadius: 2,
-            offset:
-                Offset(0, 1),
+            offset: Offset(0, 1),
           ),
         ],
       ),
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
-            decoration:
-                BoxDecoration(
-              color:
-                  AppColors.surfaceSoft,
+            width: compact ? 46 : 42,
+            height: compact ? 46 : 42,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceSoft,
               borderRadius:
                   BorderRadius.circular(
-                10,
+                compact ? 12 : 10,
               ),
             ),
             child: Icon(
               icon,
-              color:
-                  AppColors.primary,
-              size: 22,
+              color: AppColors.primary,
+              size: compact ? 23 : 22,
             ),
           ),
-
-          const SizedBox(width: 12),
-
+          SizedBox(
+            width: compact ? 12 : 12,
+          ),
           Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color:
-                        AppColors.textSecondary,
+            child: compact
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow:
+                              TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors
+                                .textSecondary,
+                            fontWeight:
+                                FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(
+                        width: 10,
+                      ),
+                      Text(
+                        value,
+                        style:
+                            const TextStyle(
+                          fontSize: 21,
+                          fontWeight:
+                              FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors
+                              .textSecondary,
+                        ),
+                      ),
+                      const SizedBox(
+                        height: 4,
+                      ),
+                      Text(
+                        value,
+                        style:
+                            const TextStyle(
+                          fontSize: 21,
+                          fontWeight:
+                              FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-
-                const SizedBox(height: 4),
-
-                Text(
-                  value,
-                  style:
-                      const TextStyle(
-                    fontSize: 21,
-                    fontWeight:
-                        FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -1349,40 +1363,63 @@ class _FacultyDashboardScreenState
     String value,
   ) {
     return Padding(
-      padding:
-          const EdgeInsets.only(
+      padding: const EdgeInsets.only(
         bottom: 10,
       ),
-      child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 95,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color:
-                    AppColors.textSecondary,
-              ),
-            ),
-          ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final labelStyle = TextStyle(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+          );
+          const valueStyle = TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          );
 
-          const SizedBox(width: 8),
+          if (constraints.maxWidth < 300) {
+            return Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: labelStyle,
+                ),
+                const SizedBox(
+                  height: 4,
+                ),
+                Text(
+                  value,
+                  softWrap: true,
+                  style: valueStyle,
+                ),
+              ],
+            );
+          }
 
-          Expanded(
-            child: Text(
-              value,
-              style:
-                  const TextStyle(
-                fontSize: 12,
-                fontWeight:
-                    FontWeight.w500,
+          return Row(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 95,
+                child: Text(
+                  label,
+                  style: labelStyle,
+                ),
               ),
-            ),
-          ),
-        ],
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  value,
+                  softWrap: true,
+                  style: valueStyle,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

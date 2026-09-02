@@ -6,9 +6,6 @@ import '../../models/admin_dashboard_stats.dart';
 import '../../services/admin_service.dart';
 import '../auth/login_screen.dart';
 import 'admin_users_screen.dart';
-import 'admin_registration_requests_screen.dart';
-import 'admin_create_admin_screen.dart';
-import 'admin_faculty_assignments_screen.dart';
 import 'admin_attendance_report_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -112,8 +109,10 @@ class _AdminDashboardScreenState
   Future<void> _openPendingUsers() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            const AdminRegistrationRequestsScreen(),
+        builder: (_) => const AdminUsersScreen(
+          initialStatus: 'PENDING',
+          title: 'Pending Users',
+        ),
       ),
     );
 
@@ -224,39 +223,6 @@ class _AdminDashboardScreenState
     }
 
     await _loadDashboardStatistics();
-  }
-
-  Future<void> _openFacultyAssignments() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            const AdminFacultyAssignmentsScreen(),
-      ),
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    await _loadDashboardStatistics();
-  }
-
-  Future<void> _openCreateAdministrator() async {
-    final created =
-        await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) =>
-            const AdminCreateAdminScreen(),
-      ),
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    if (created == true) {
-      await _loadDashboardStatistics();
-    }
   }
 
   // ============================================================
@@ -494,20 +460,6 @@ class _AdminDashboardScreenState
               title: 'Faculty',
               selected: false,
               onTap: _openFaculty,
-            ),
-
-            _buildSidebarItem(
-              icon: Icons.assignment_ind_rounded,
-              title: 'Faculty Assignments',
-              selected: false,
-              onTap: _openFacultyAssignments,
-            ),
-
-            _buildSidebarItem(
-              icon: Icons.admin_panel_settings_rounded,
-              title: 'Create Admin',
-              selected: false,
-              onTap: _openCreateAdministrator,
             ),
 
             _buildSidebarItem(
@@ -1030,15 +982,28 @@ class _AdminDashboardScreenState
       ) {
         final width = constraints.maxWidth;
 
-        int columns;
-
-        if (width >= 1200) {
-          columns = 4;
-        } else if (width >= 800) {
-          columns = 2;
-        } else {
-          columns = 1;
+        // On phones, avoid GridView childAspectRatio entirely.
+        // The old ratio produced a fractional card height on some
+        // Android devices, which caused the 0.286 px bottom overflow.
+        if (width < 600) {
+          return Column(
+            children: [
+              for (int i = 0;
+                  i < cards.length;
+                  i++) ...[
+                _buildStatCard(
+                  cards[i],
+                  compact: true,
+                ),
+                if (i != cards.length - 1)
+                  const SizedBox(height: 12),
+              ],
+            ],
+          );
         }
+
+        final columns =
+            width >= 1200 ? 4 : 2;
 
         return GridView.builder(
           shrinkWrap: true,
@@ -1050,8 +1015,7 @@ class _AdminDashboardScreenState
             crossAxisCount: columns,
             crossAxisSpacing: 18,
             mainAxisSpacing: 18,
-            childAspectRatio:
-                columns == 1 ? 3.5 : 2.2,
+            childAspectRatio: 2.2,
           ),
           itemBuilder: (
             context,
@@ -1071,69 +1035,113 @@ class _AdminDashboardScreenState
   // ============================================================
 
   Widget _buildStatCard(
-    _DashboardStatData data,
-  ) {
+    _DashboardStatData data, {
+    bool compact = false,
+  }) {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: data.onTap,
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 16 : 20,
+            vertical: compact ? 14 : 20,
+          ),
           child: Row(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: compact ? 46 : 52,
+                height: compact ? 46 : 52,
                 decoration: BoxDecoration(
                   color:
                       AppColors.primary.withValues(
                     alpha: 0.10,
                   ),
                   borderRadius:
-                      BorderRadius.circular(14),
+                      BorderRadius.circular(
+                    compact ? 12 : 14,
+                  ),
                 ),
                 child: Icon(
                   data.icon,
                   color: AppColors.primary,
-                  size: 27,
+                  size: compact ? 23 : 27,
                 ),
               ),
 
-              const SizedBox(width: 16),
+              SizedBox(
+                width: compact ? 12 : 16,
+              ),
 
               Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  mainAxisAlignment:
-                      MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      data.title,
-                      style: TextStyle(
-                        color:
-                            AppColors.textSecondary,
-                        fontSize: 14,
+                child: compact
+                    ? Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              data.title,
+                              maxLines: 1,
+                              overflow:
+                                  TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors
+                                    .textSecondary,
+                                fontSize: 13,
+                                fontWeight:
+                                    FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            data.value,
+                            style:
+                                const TextStyle(
+                              fontSize: 21,
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            data.title,
+                            style: TextStyle(
+                              color: AppColors
+                                  .textSecondary,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(
+                            height: 5,
+                          ),
+                          Text(
+                            data.value,
+                            style:
+                                const TextStyle(
+                              fontSize: 26,
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
+              ),
 
-                    const SizedBox(height: 5),
-
-                    Text(
-                      data.value,
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
+              SizedBox(
+                width: compact ? 6 : 0,
               ),
 
               Icon(
                 Icons.chevron_right_rounded,
                 color: AppColors.textSecondary,
+                size: compact ? 20 : 24,
               ),
             ],
           ),
@@ -1203,26 +1211,6 @@ class _AdminDashboardScreenState
               subtitle:
                   'View faculty accounts',
               onTap: _openFaculty,
-            ),
-
-            const SizedBox(height: 12),
-
-            _buildActionButton(
-              icon: Icons.assignment_ind_rounded,
-              title: 'Faculty Assignments',
-              subtitle:
-                  'Assign Semester, Section and Subject to Faculty',
-              onTap: _openFacultyAssignments,
-            ),
-
-            const SizedBox(height: 12),
-
-            _buildActionButton(
-              icon: Icons.admin_panel_settings_rounded,
-              title: 'Create Administrator',
-              subtitle:
-                  'Create another secure administrator account',
-              onTap: _openCreateAdministrator,
             ),
 
             const SizedBox(height: 12),
@@ -1473,66 +1461,177 @@ class _AdminDashboardScreenState
         onTap: _openAllUsers,
         borderRadius:
             BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(22),
-          child: Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color:
-                      AppColors.primary.withValues(
-                    alpha: 0.10,
-                  ),
-                  borderRadius:
-                      BorderRadius.circular(14),
-                ),
-                child: const Icon(
-                  Icons.manage_accounts_rounded,
-                  color: AppColors.primary,
-                  size: 28,
-                ),
-              ),
+        child: LayoutBuilder(
+          builder: (
+            context,
+            constraints,
+          ) {
+            final compact =
+                constraints.maxWidth < 600;
 
-              const SizedBox(width: 16),
-
-              const Expanded(
+            if (compact) {
+              return Padding(
+                padding: const EdgeInsets.all(18),
                 child: Column(
                   crossAxisAlignment:
                       CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'User Management',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration:
+                              BoxDecoration(
+                            color: AppColors
+                                .primary
+                                .withValues(
+                              alpha: 0.10,
+                            ),
+                            borderRadius:
+                                BorderRadius
+                                    .circular(
+                              12,
+                            ),
+                          ),
+                          child:
+                              const Icon(
+                            Icons
+                                .manage_accounts_rounded,
+                            color:
+                                AppColors.primary,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(
+                          width: 12,
+                        ),
+                        const Expanded(
+                          child: Text(
+                            'User Management',
+                            maxLines: 1,
+                            overflow:
+                                TextOverflow
+                                    .ellipsis,
+                            style:
+                                TextStyle(
+                              fontSize: 16,
+                              fontWeight:
+                                  FontWeight
+                                      .bold,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-
-                    SizedBox(height: 5),
-
-                    Text(
+                    const SizedBox(
+                      height: 12,
+                    ),
+                    const Text(
                       'View, search and manage all registered student, faculty and administrator accounts.',
                       style: TextStyle(
                         color: Colors.grey,
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(
+                      height: 16,
+                    ),
+                    SizedBox(
+                      width: double.infinity,
+                      child:
+                          FilledButton.icon(
+                        onPressed:
+                            _openAllUsers,
+                        icon: const Icon(
+                          Icons
+                              .arrow_forward_rounded,
+                        ),
+                        label: const Text(
+                          'Manage Users',
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
+              );
+            }
 
-              FilledButton.icon(
-                onPressed: _openAllUsers,
-                icon: const Icon(
-                  Icons.arrow_forward_rounded,
-                ),
-                label:
-                    const Text('Manage Users'),
+            return Padding(
+              padding:
+                  const EdgeInsets.all(22),
+              child: Row(
+                children: [
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration:
+                        BoxDecoration(
+                      color: AppColors.primary
+                          .withValues(
+                        alpha: 0.10,
+                      ),
+                      borderRadius:
+                          BorderRadius.circular(
+                        14,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons
+                          .manage_accounts_rounded,
+                      color:
+                          AppColors.primary,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(
+                    width: 16,
+                  ),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment
+                              .start,
+                      children: [
+                        Text(
+                          'User Management',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight:
+                                FontWeight
+                                    .bold,
+                          ),
+                        ),
+                        SizedBox(height: 5),
+                        Text(
+                          'View, search and manage all registered student, faculty and administrator accounts.',
+                          style: TextStyle(
+                            color:
+                                Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(
+                    width: 16,
+                  ),
+                  FilledButton.icon(
+                    onPressed:
+                        _openAllUsers,
+                    icon: const Icon(
+                      Icons
+                          .arrow_forward_rounded,
+                    ),
+                    label: const Text(
+                      'Manage Users',
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

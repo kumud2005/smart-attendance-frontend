@@ -280,42 +280,76 @@ class _StudentDashboardScreenState
   Widget build(
     BuildContext context,
   ) {
-    return Scaffold(
-      backgroundColor:
-          AppColors.background,
-      body: SafeArea(
-        child: Row(
-          children: [
-            _buildSidebar(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth < 760;
+        final contentPadding =
+            compact ? 14.0 : 24.0;
 
-            Expanded(
-              child: Column(
-                children: [
-                  _buildTopBar(),
-
-                  Expanded(
-                    child:
-                        RefreshIndicator(
-                      onRefresh:
-                          _loadDashboard,
-                      child:
-                          SingleChildScrollView(
-                        physics:
-                            const AlwaysScrollableScrollPhysics(),
-                        padding:
-                            const EdgeInsets
-                                .all(24),
-                        child:
-                            _buildContent(),
-                      ),
-                    ),
-                  ),
-                ],
+        Widget mainContent({
+          VoidCallback? onMenuTap,
+        }) {
+          return Column(
+            children: [
+              _buildTopBar(
+                onMenuTap: onMenuTap,
+                compact: compact,
               ),
-            ),
-          ],
-        ),
-      ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _loadDashboard,
+                  child: SingleChildScrollView(
+                    physics:
+                        const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.all(
+                      contentPadding,
+                    ),
+                    child: _buildContent(),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Scaffold(
+          backgroundColor:
+              AppColors.background,
+          drawer: compact
+              ? Drawer(
+                  width: 280,
+                  child: _buildSidebar(
+                    width: double.infinity,
+                  ),
+                )
+              : null,
+          body: SafeArea(
+            child: compact
+                ? Builder(
+                    builder: (
+                      scaffoldContext,
+                    ) {
+                      return mainContent(
+                        onMenuTap: () {
+                          Scaffold.of(
+                            scaffoldContext,
+                          ).openDrawer();
+                        },
+                      );
+                    },
+                  )
+                : Row(
+                    children: [
+                      _buildSidebar(),
+                      Expanded(
+                        child: mainContent(),
+                      ),
+                    ],
+                  ),
+          ),
+        );
+      },
     );
   }
 
@@ -323,12 +357,15 @@ class _StudentDashboardScreenState
   // SIDEBAR
   // ============================================================
 
-  Widget _buildSidebar() {
+  Widget _buildSidebar({
+    double width = 205,
+  }) {
     return Container(
-      width: 205,
+      width: width,
       color:
           AppColors.primaryDark,
-      child: Column(
+      child: SafeArea(
+        child: Column(
         children: [
           Container(
             height: 128,
@@ -482,14 +519,10 @@ class _StudentDashboardScreenState
             ),
           ),
         ],
+        ),
       ),
     );
   }
-
-  // ============================================================
-  // SIDEBAR ITEM
-  // ============================================================
-
   Widget _sidebarItem({
     required IconData icon,
     required String title,
@@ -582,27 +615,44 @@ class _StudentDashboardScreenState
   // TOP BAR
   // ============================================================
 
-  Widget _buildTopBar() {
+  Widget _buildTopBar({
+    VoidCallback? onMenuTap,
+    required bool compact,
+  }) {
     return Container(
       height: 62,
       color: AppColors.white,
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 20,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 20,
       ),
       child: Row(
         children: [
-          const Text(
-            'Student Dashboard',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight:
-                  FontWeight.w600,
+          if (onMenuTap != null) ...[
+            IconButton(
+              tooltip: 'Menu',
+              onPressed: onMenuTap,
+              icon: const Icon(
+                Icons.menu_rounded,
+              ),
+            ),
+            const SizedBox(
+              width: 2,
+            ),
+          ],
+          Expanded(
+            child: Text(
+              'Student Dashboard',
+              maxLines: 1,
+              overflow:
+                  TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize:
+                    compact ? 17 : 20,
+                fontWeight:
+                    FontWeight.w600,
+              ),
             ),
           ),
-
-          const Spacer(),
-
           IconButton(
             tooltip: 'Refresh',
             onPressed: _isLoading
@@ -612,11 +662,9 @@ class _StudentDashboardScreenState
               Icons.refresh_rounded,
             ),
           ),
-
           const SizedBox(
-            width: 8,
+            width: 2,
           ),
-
           const CircleAvatar(
             radius: 17,
             backgroundColor:
@@ -628,31 +676,29 @@ class _StudentDashboardScreenState
               size: 20,
             ),
           ),
-
-          const SizedBox(
-            width: 10,
-          ),
-
-          Flexible(
-            child: Text(
-              _value(
-                'full_name',
-                fallback:
-                    'Student',
-              ),
-              maxLines: 1,
-              overflow:
-                  TextOverflow
-                      .ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors
-                    .grey.shade800,
-                fontWeight:
-                    FontWeight.w500,
+          if (!compact) ...[
+            const SizedBox(
+              width: 10,
+            ),
+            Flexible(
+              child: Text(
+                _value(
+                  'full_name',
+                  fallback: 'Student',
+                ),
+                maxLines: 1,
+                overflow:
+                    TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors
+                      .grey.shade800,
+                  fontWeight:
+                      FontWeight.w500,
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -749,160 +795,160 @@ class _StudentDashboardScreenState
     final faceRegistered =
         _faceRegistered();
 
-    return Container(
-      width:
-          double.infinity,
-      padding:
-          const EdgeInsets.all(
-        24,
-      ),
-      decoration:
-          BoxDecoration(
-        color:
-            AppColors.white,
-        borderRadius:
-            BorderRadius.circular(
-          14,
+    Widget iconBox() {
+      return Container(
+        width: 66,
+        height: 66,
+        decoration: BoxDecoration(
+          color: const Color(
+            0xFFE8EAF8,
+          ),
+          borderRadius:
+              BorderRadius.circular(14),
         ),
+        child: const Icon(
+          Icons.qr_code_scanner_rounded,
+          color: Color(
+            0xFF4658B7,
+          ),
+          size: 34,
+        ),
+      );
+    }
+
+    Widget details() {
+      return Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Mark Attendance',
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight:
+                  FontWeight.w600,
+            ),
+          ),
+          const SizedBox(
+            height: 5,
+          ),
+          Text(
+            'Scan the QR code displayed by your faculty.',
+            style: TextStyle(
+              fontSize: 13,
+              color:
+                  Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(
+            height: 8,
+          ),
+          Row(
+            children: [
+              Icon(
+                faceRegistered
+                    ? Icons.check_circle_rounded
+                    : Icons.info_outline_rounded,
+                size: 16,
+                color: faceRegistered
+                    ? Colors.green
+                    : Colors.orange,
+              ),
+              const SizedBox(
+                width: 6,
+              ),
+              Flexible(
+                child: Text(
+                  faceRegistered
+                      ? 'Face profile ready'
+                      : 'Face profile not registered',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: faceRegistered
+                        ? Colors.green.shade700
+                        : Colors.orange.shade800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius:
+            BorderRadius.circular(14),
         border: Border.all(
-          color:
-              const Color(
+          color: const Color(
             0xFFE7E4ED,
           ),
         ),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 66,
-            height: 66,
-            decoration:
-                BoxDecoration(
-              color:
-                  const Color(
-                0xFFE8EAF8,
-              ),
-              borderRadius:
-                  BorderRadius
-                      .circular(
-                14,
-              ),
-            ),
-            child:
-                const Icon(
-              Icons
-                  .qr_code_scanner_rounded,
-              color:
-                  Color(
-                0xFF4658B7,
-              ),
-              size: 34,
-            ),
-          ),
-
-          const SizedBox(
-            width: 18,
-          ),
-
-          Expanded(
-            child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 520) {
+            return Column(
               crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
+                  CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'Mark Attendance',
-                  style:
-                      TextStyle(
-                    fontSize: 19,
-                    fontWeight:
-                        FontWeight
-                            .w600,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 5,
-                ),
-
-                Text(
-                  'Scan the QR code displayed by your faculty.',
-                  style:
-                      TextStyle(
-                    fontSize: 13,
-                    color: Colors
-                        .grey.shade600,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 8,
-                ),
-
                 Row(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      faceRegistered
-                          ? Icons
-                              .check_circle_rounded
-                          : Icons
-                              .info_outline_rounded,
-                      size: 16,
-                      color:
-                          faceRegistered
-                              ? Colors
-                                  .green
-                              : Colors
-                                  .orange,
-                    ),
-
+                    iconBox(),
                     const SizedBox(
-                      width: 6,
+                      width: 14,
                     ),
-
-                    Flexible(
-                      child: Text(
-                        faceRegistered
-                            ? 'Face profile ready'
-                            : 'Face profile not registered',
-                        style:
-                            TextStyle(
-                          fontSize:
-                              11,
-                          color: faceRegistered
-                              ? Colors
-                                  .green
-                                  .shade700
-                              : Colors
-                                  .orange
-                                  .shade800,
-                        ),
-                      ),
+                    Expanded(
+                      child: details(),
                     ),
                   ],
                 ),
+                const SizedBox(
+                  height: 16,
+                ),
+                FilledButton.icon(
+                  onPressed: _openScanner,
+                  icon: const Icon(
+                    Icons.qr_code_scanner_rounded,
+                  ),
+                  label: const Text(
+                    'Scan QR',
+                  ),
+                ),
               ],
-            ),
-          ),
+            );
+          }
 
-          const SizedBox(
-            width: 16,
-          ),
-
-          FilledButton.icon(
-            onPressed:
-                _openScanner,
-            icon:
-                const Icon(
-              Icons
-                  .qr_code_scanner_rounded,
-            ),
-            label:
-                const Text(
-              'Scan QR',
-            ),
-          ),
-        ],
+          return Row(
+            children: [
+              iconBox(),
+              const SizedBox(
+                width: 18,
+              ),
+              Expanded(
+                child: details(),
+              ),
+              const SizedBox(
+                width: 16,
+              ),
+              FilledButton.icon(
+                onPressed: _openScanner,
+                icon: const Icon(
+                  Icons.qr_code_scanner_rounded,
+                ),
+                label: const Text(
+                  'Scan QR',
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -913,54 +959,48 @@ class _StudentDashboardScreenState
 
   Widget _buildStatistics() {
     return LayoutBuilder(
-      builder:
-          (
+      builder: (
         context,
         constraints,
       ) {
+        final compact =
+            constraints.maxWidth < 700;
+
         final cards = [
           _statCard(
-            icon:
-                Icons.menu_book_rounded,
-            title:
-                'Subjects',
+            icon: Icons.menu_book_rounded,
+            title: 'Subjects',
             value: _intValue(
               'subject_count',
             ).toString(),
+            compact: compact,
           ),
           _statCard(
-            icon:
-                Icons.groups_rounded,
-            title:
-                'Classes',
+            icon: Icons.groups_rounded,
+            title: 'Classes',
             value: _intValue(
               'class_count',
             ).toString(),
+            compact: compact,
           ),
           _statCard(
-            icon:
-                Icons.fact_check_rounded,
-            title:
-                'Attendance',
+            icon: Icons.fact_check_rounded,
+            title: 'Attendance',
             value: _intValue(
               'attendance_count',
             ).toString(),
+            compact: compact,
           ),
         ];
 
-        if (constraints.maxWidth <
-            700) {
+        if (compact) {
           return Column(
             children: [
               for (int i = 0;
-                  i <
-                      cards.length;
+                  i < cards.length;
                   i++) ...[
                 cards[i],
-
-                if (i !=
-                    cards.length -
-                        1)
+                if (i != cards.length - 1)
                   const SizedBox(
                     height: 12,
                   ),
@@ -972,17 +1012,12 @@ class _StudentDashboardScreenState
         return Row(
           children: [
             for (int i = 0;
-                i <
-                    cards.length;
+                i < cards.length;
                 i++) ...[
               Expanded(
-                child:
-                    cards[i],
+                child: cards[i],
               ),
-
-              if (i !=
-                  cards.length -
-                      1)
+              if (i != cards.length - 1)
                 const SizedBox(
                   width: 12,
                 ),
@@ -997,23 +1032,19 @@ class _StudentDashboardScreenState
     required IconData icon,
     required String title,
     required String value,
+    bool compact = false,
   }) {
     return Container(
-      padding:
-          const EdgeInsets.all(
-        18,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 16 : 18,
+        vertical: compact ? 14 : 18,
       ),
-      decoration:
-          BoxDecoration(
-        color:
-            AppColors.white,
+      decoration: BoxDecoration(
+        color: AppColors.white,
         borderRadius:
-            BorderRadius.circular(
-          12,
-        ),
+            BorderRadius.circular(12),
         border: Border.all(
-          color:
-              const Color(
+          color: const Color(
             0xFFE7E4ED,
           ),
         ),
@@ -1021,66 +1052,87 @@ class _StudentDashboardScreenState
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
-            decoration:
-                BoxDecoration(
-              color:
-                  const Color(
+            width: compact ? 46 : 42,
+            height: compact ? 46 : 42,
+            decoration: BoxDecoration(
+              color: const Color(
                 0xFFE8EAF8,
               ),
               borderRadius:
-                  BorderRadius
-                      .circular(
-                10,
+                  BorderRadius.circular(
+                compact ? 12 : 10,
               ),
             ),
             child: Icon(
               icon,
-              color:
-                  const Color(
+              color: const Color(
                 0xFF4658B7,
               ),
-              size: 22,
+              size: compact ? 23 : 22,
             ),
           ),
-
           const SizedBox(
             width: 12,
           ),
-
           Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
-              children: [
-                Text(
-                  title,
-                  style:
-                      TextStyle(
-                    fontSize: 12,
-                    color: Colors
-                        .grey.shade600,
+            child: compact
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow:
+                              TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors
+                                .grey.shade600,
+                            fontWeight:
+                                FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(
+                        width: 10,
+                      ),
+                      Text(
+                        value,
+                        style:
+                            const TextStyle(
+                          fontSize: 21,
+                          fontWeight:
+                              FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors
+                              .grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(
+                        height: 4,
+                      ),
+                      Text(
+                        value,
+                        style:
+                            const TextStyle(
+                          fontSize: 21,
+                          fontWeight:
+                              FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-
-                const SizedBox(
-                  height: 4,
-                ),
-
-                Text(
-                  value,
-                  style:
-                      const TextStyle(
-                    fontSize: 21,
-                    fontWeight:
-                        FontWeight
-                            .w600,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -1370,43 +1422,65 @@ class _StudentDashboardScreenState
     String value,
   ) {
     return Padding(
-      padding:
-          const EdgeInsets.only(
+      padding: const EdgeInsets.only(
         bottom: 10,
       ),
-      child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style:
-                  TextStyle(
-                fontSize: 12,
-                color: Colors
-                    .grey.shade600,
-              ),
-            ),
-          ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final labelStyle = TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+          );
+          const valueStyle = TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          );
 
-          const SizedBox(
-            width: 8,
-          ),
+          if (constraints.maxWidth < 320) {
+            return Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: labelStyle,
+                ),
+                const SizedBox(
+                  height: 4,
+                ),
+                Text(
+                  value,
+                  softWrap: true,
+                  style: valueStyle,
+                ),
+              ],
+            );
+          }
 
-          Expanded(
-            child: Text(
-              value,
-              style:
-                  const TextStyle(
-                fontSize: 12,
-                fontWeight:
-                    FontWeight.w500,
+          return Row(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 110,
+                child: Text(
+                  label,
+                  style: labelStyle,
+                ),
               ),
-            ),
-          ),
-        ],
+              const SizedBox(
+                width: 8,
+              ),
+              Expanded(
+                child: Text(
+                  value,
+                  softWrap: true,
+                  style: valueStyle,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
