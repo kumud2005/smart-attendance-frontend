@@ -6,6 +6,7 @@ import '../../models/admin_dashboard_stats.dart';
 import '../../services/admin_service.dart';
 import '../auth/login_screen.dart';
 import 'admin_users_screen.dart';
+import 'admin_faculty_assignments_screen.dart';
 import 'admin_attendance_report_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -147,6 +148,21 @@ class _AdminDashboardScreenState
           initialRole: 'FACULTY',
           title: 'Faculty',
         ),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    await _loadDashboardStatistics();
+  }
+
+  Future<void> _openFacultyAssignments() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            const AdminFacultyAssignmentsScreen(),
       ),
     );
 
@@ -460,6 +476,13 @@ class _AdminDashboardScreenState
               title: 'Faculty',
               selected: false,
               onTap: _openFaculty,
+            ),
+
+            _buildSidebarItem(
+              icon: Icons.assignment_ind_rounded,
+              title: 'Faculty Assignments',
+              selected: false,
+              onTap: _openFacultyAssignments,
             ),
 
             _buildSidebarItem(
@@ -1211,6 +1234,16 @@ class _AdminDashboardScreenState
               subtitle:
                   'View faculty accounts',
               onTap: _openFaculty,
+            ),
+
+            const SizedBox(height: 12),
+
+            _buildActionButton(
+              icon: Icons.assignment_ind_rounded,
+              title: 'Faculty Assignments',
+              subtitle:
+                  'Assign, change or remove faculty subject assignments',
+              onTap: _openFacultyAssignments,
             ),
 
             const SizedBox(height: 12),
