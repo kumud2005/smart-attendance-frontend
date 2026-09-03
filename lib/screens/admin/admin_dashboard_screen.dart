@@ -7,6 +7,7 @@ import '../../services/admin_service.dart';
 import '../auth/login_screen.dart';
 import 'admin_users_screen.dart';
 import 'admin_faculty_assignments_screen.dart';
+import 'admin_classrooms_screen.dart';
 import 'admin_attendance_report_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -163,6 +164,21 @@ class _AdminDashboardScreenState
       MaterialPageRoute(
         builder: (_) =>
             const AdminFacultyAssignmentsScreen(),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    await _loadDashboardStatistics();
+  }
+
+  Future<void> _openClassrooms() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            const AdminClassroomsScreen(),
       ),
     );
 
@@ -483,6 +499,13 @@ class _AdminDashboardScreenState
               title: 'Faculty Assignments',
               selected: false,
               onTap: _openFacultyAssignments,
+            ),
+
+            _buildSidebarItem(
+              icon: Icons.meeting_room_rounded,
+              title: 'Classroom Management',
+              selected: false,
+              onTap: _openClassrooms,
             ),
 
             _buildSidebarItem(
@@ -1244,6 +1267,16 @@ class _AdminDashboardScreenState
               subtitle:
                   'Assign, change or remove faculty subject assignments',
               onTap: _openFacultyAssignments,
+            ),
+
+            const SizedBox(height: 12),
+
+            _buildActionButton(
+              icon: Icons.meeting_room_rounded,
+              title: 'Classroom Management',
+              subtitle:
+                  'Add, edit, activate or deactivate classrooms and geofences',
+              onTap: _openClassrooms,
             ),
 
             const SizedBox(height: 12),

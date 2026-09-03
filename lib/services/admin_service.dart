@@ -412,6 +412,140 @@ class AdminService {
     );
   }
 
+
+  // ============================================================
+  // CLASSROOM MANAGEMENT
+  // ============================================================
+
+  Future<List<Map<String, dynamic>>> getClassrooms({
+    bool activeOnly = false,
+  }) async {
+    final response = await _apiClient.get(
+      '/admin/classrooms?active_only=$activeOnly',
+    );
+
+    if (response is List) {
+      return response
+          .whereType<Map>()
+          .map(
+            (item) => Map<String, dynamic>.from(item),
+          )
+          .toList();
+    }
+
+    throw Exception(
+      'Invalid classroom list response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> createClassroom({
+    required String buildingName,
+    required String roomNumber,
+    required double latitude,
+    required double longitude,
+    required double geofenceRadiusMeters,
+    bool isActive = true,
+  }) async {
+    final response = await _apiClient.post(
+      '/admin/classrooms',
+      body: {
+        'building_name': buildingName.trim(),
+        'room_number': roomNumber.trim(),
+        'latitude': latitude,
+        'longitude': longitude,
+        'geofence_radius_meters':
+            geofenceRadiusMeters,
+        'is_active': isActive,
+      },
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid create-classroom response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> updateClassroom({
+    required int classroomId,
+    required String buildingName,
+    required String roomNumber,
+    required double latitude,
+    required double longitude,
+    required double geofenceRadiusMeters,
+  }) async {
+    if (classroomId <= 0) {
+      throw Exception('Invalid classroom ID.');
+    }
+
+    final response = await _apiClient.patch(
+      '/admin/classrooms/$classroomId',
+      body: {
+        'building_name': buildingName.trim(),
+        'room_number': roomNumber.trim(),
+        'latitude': latitude,
+        'longitude': longitude,
+        'geofence_radius_meters':
+            geofenceRadiusMeters,
+      },
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid update-classroom response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> activateClassroom(
+    int classroomId,
+  ) async {
+    if (classroomId <= 0) {
+      throw Exception('Invalid classroom ID.');
+    }
+
+    final response = await _apiClient.patch(
+      '/admin/classrooms/$classroomId/activate',
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid activate-classroom response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> deactivateClassroom(
+    int classroomId,
+  ) async {
+    if (classroomId <= 0) {
+      throw Exception('Invalid classroom ID.');
+    }
+
+    final response = await _apiClient.patch(
+      '/admin/classrooms/$classroomId/deactivate',
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid deactivate-classroom response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> deleteClassroom(
+    int classroomId,
+  ) async {
+    if (classroomId <= 0) {
+      throw Exception('Invalid classroom ID.');
+    }
+
+    final response = await _apiClient.delete(
+      '/admin/classrooms/$classroomId',
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid delete-classroom response received from server.',
+    );
+  }
+
   // ============================================================
   // CREATE ADMINISTRATOR
   // ============================================================
