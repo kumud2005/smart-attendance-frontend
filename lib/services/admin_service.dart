@@ -414,6 +414,276 @@ class AdminService {
 
 
   // ============================================================
+  // ACADEMIC PROGRAM / COURSE-BRANCH MANAGEMENT
+  // ============================================================
+
+  Future<List<Map<String, dynamic>>> getPrograms({
+    bool activeOnly = false,
+  }) async {
+    final response = await _apiClient.get(
+      '/admin/programs?active_only=$activeOnly',
+    );
+
+    return _parseMapList(
+      response,
+      errorMessage:
+          'Invalid academic-program list response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> createProgram({
+    required String programCode,
+    required String programName,
+    String? description,
+  }) async {
+    final response = await _apiClient.post(
+      '/admin/programs',
+      body: {
+        'program_code': programCode.trim(),
+        'program_name': programName.trim(),
+        if (description != null && description.trim().isNotEmpty)
+          'description': description.trim(),
+      },
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid create-program response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> activateProgram(int programId) async {
+    final response = await _apiClient.patch(
+      '/admin/programs/$programId/activate',
+    );
+    return _parseMapResponse(
+      response,
+      'Invalid activate-program response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> deactivateProgram(int programId) async {
+    final response = await _apiClient.patch(
+      '/admin/programs/$programId/deactivate',
+    );
+    return _parseMapResponse(
+      response,
+      'Invalid deactivate-program response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> deleteProgram(int programId) async {
+    final response = await _apiClient.delete(
+      '/admin/programs/$programId',
+    );
+    return _parseMapResponse(
+      response,
+      'Invalid delete-program response received from server.',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getBranches({
+    int? programId,
+    bool activeOnly = false,
+  }) async {
+    final query = <String, String>{
+      'active_only': activeOnly.toString(),
+      if (programId != null) 'program_id': programId.toString(),
+    };
+
+    final response = await _apiClient.get(
+      '/admin/branches?${Uri(queryParameters: query).query}',
+    );
+
+    return _parseMapList(
+      response,
+      errorMessage:
+          'Invalid course/branch list response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> createBranch({
+    required int programId,
+    required String branchCode,
+    required String branchName,
+  }) async {
+    final response = await _apiClient.post(
+      '/admin/branches',
+      body: {
+        'program_id': programId,
+        'branch_code': branchCode.trim(),
+        'branch_name': branchName.trim(),
+      },
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid create-course/branch response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> activateBranch(int branchId) async {
+    final response = await _apiClient.patch(
+      '/admin/branches/$branchId/activate',
+    );
+    return _parseMapResponse(
+      response,
+      'Invalid activate-course/branch response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> deactivateBranch(int branchId) async {
+    final response = await _apiClient.patch(
+      '/admin/branches/$branchId/deactivate',
+    );
+    return _parseMapResponse(
+      response,
+      'Invalid deactivate-course/branch response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> deleteBranch(int branchId) async {
+    final response = await _apiClient.delete(
+      '/admin/branches/$branchId',
+    );
+    return _parseMapResponse(
+      response,
+      'Invalid delete-course/branch response received from server.',
+    );
+  }
+
+
+  // ============================================================
+  // SUBJECT MANAGEMENT
+  // ============================================================
+
+  Future<Map<String, dynamic>> getSubjectManagementOptions() async {
+    final response = await _apiClient.get(
+      '/admin/subjects/options',
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid subject-management options response received from server.',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getSubjects({
+    int? programId,
+    int? branchId,
+    int? semesterId,
+    bool activeOnly = false,
+  }) async {
+    final queryParameters = <String, String>{
+      'active_only': activeOnly.toString(),
+    };
+
+    if (programId != null) {
+      queryParameters['program_id'] = programId.toString();
+    }
+
+    if (branchId != null) {
+      queryParameters['branch_id'] = branchId.toString();
+    }
+
+    if (semesterId != null) {
+      queryParameters['semester_id'] = semesterId.toString();
+    }
+
+    final query = Uri(
+      queryParameters: queryParameters,
+    ).query;
+
+    final response = await _apiClient.get(
+      '/admin/subjects?$query',
+    );
+
+    return _parseMapList(
+      response,
+      errorMessage:
+          'Invalid subject list response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> createSubject({
+    required int programId,
+    required int branchId,
+    required int semesterId,
+    required String subjectCode,
+    required String subjectName,
+    double? credits,
+  }) async {
+    final response = await _apiClient.post(
+      '/admin/subjects',
+      body: {
+        'program_id': programId,
+        'branch_id': branchId,
+        'semester_id': semesterId,
+        'subject_code': subjectCode.trim(),
+        'subject_name': subjectName.trim(),
+        'credits': ?credits,
+      },
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid create-subject response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> activateSubject(
+    int subjectId,
+  ) async {
+    if (subjectId <= 0) {
+      throw Exception('Invalid subject ID.');
+    }
+
+    final response = await _apiClient.patch(
+      '/admin/subjects/$subjectId/activate',
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid activate-subject response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> deactivateSubject(
+    int subjectId,
+  ) async {
+    if (subjectId <= 0) {
+      throw Exception('Invalid subject ID.');
+    }
+
+    final response = await _apiClient.patch(
+      '/admin/subjects/$subjectId/deactivate',
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid deactivate-subject response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>> deleteSubject(
+    int subjectId,
+  ) async {
+    if (subjectId <= 0) {
+      throw Exception('Invalid subject ID.');
+    }
+
+    final response = await _apiClient.delete(
+      '/admin/subjects/$subjectId',
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid delete-subject response received from server.',
+    );
+  }
+
+
+  // ============================================================
   // CLASSROOM MANAGEMENT
   // ============================================================
 

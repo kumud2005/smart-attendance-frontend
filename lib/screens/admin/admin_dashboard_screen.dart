@@ -7,6 +7,8 @@ import '../../services/admin_service.dart';
 import '../auth/login_screen.dart';
 import 'admin_users_screen.dart';
 import 'admin_faculty_assignments_screen.dart';
+import 'admin_academic_structure_screen.dart';
+import 'admin_subjects_screen.dart';
 import 'admin_classrooms_screen.dart';
 import 'admin_attendance_report_screen.dart';
 
@@ -164,6 +166,35 @@ class _AdminDashboardScreenState
       MaterialPageRoute(
         builder: (_) =>
             const AdminFacultyAssignmentsScreen(),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    await _loadDashboardStatistics();
+  }
+
+  Future<void> _openAcademicStructure() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const AdminAcademicStructureScreen(),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    await _loadDashboardStatistics();
+  }
+
+  Future<void> _openSubjects() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            const AdminSubjectsScreen(),
       ),
     );
 
@@ -499,6 +530,20 @@ class _AdminDashboardScreenState
               title: 'Faculty Assignments',
               selected: false,
               onTap: _openFacultyAssignments,
+            ),
+
+            _buildSidebarItem(
+              icon: Icons.account_tree_rounded,
+              title: 'Academic Structure',
+              selected: false,
+              onTap: _openAcademicStructure,
+            ),
+
+            _buildSidebarItem(
+              icon: Icons.menu_book_rounded,
+              title: 'Subject Management',
+              selected: false,
+              onTap: _openSubjects,
             ),
 
             _buildSidebarItem(
@@ -1267,6 +1312,26 @@ class _AdminDashboardScreenState
               subtitle:
                   'Assign, change or remove faculty subject assignments',
               onTap: _openFacultyAssignments,
+            ),
+
+            const SizedBox(height: 12),
+
+            _buildActionButton(
+              icon: Icons.account_tree_rounded,
+              title: 'Academic Structure',
+              subtitle:
+                  'Add and manage programs and courses / branches',
+              onTap: _openAcademicStructure,
+            ),
+
+            const SizedBox(height: 12),
+
+            _buildActionButton(
+              icon: Icons.menu_book_rounded,
+              title: 'Subject Management',
+              subtitle:
+                  'Add, activate, deactivate or safely delete subjects by program and semester',
+              onTap: _openSubjects,
             ),
 
             const SizedBox(height: 12),
