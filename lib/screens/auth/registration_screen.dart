@@ -219,6 +219,11 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   Future<void> _register() async {
     FocusScope.of(context).unfocus();
+
+    // Keep registration data consistent before validation/submission.
+    _fullName.text = _toTitleCase(_fullName.text);
+    _email.text = _email.text.trim().toLowerCase();
+
     if (!_formKey.currentState!.validate()) return;
 
     if (_semesterId == null) {
@@ -425,9 +430,19 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                               : Icons.visibility_off_outlined,
                         ),
                       ),
-                      validator: (v) => (v ?? '').length < 8
-                          ? 'Password must be at least 8 characters.'
-                          : null,
+                      validator: _validatePassword,
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.only(left: 12, top: 7),
+                      child: Text(
+                        'Must contain at least 8 characters, including 1 uppercase, '
+                        '1 lowercase, 1 number and 1 special character.',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          height: 1.35,
+                        ),
+                      ),
                     ),
                     _gap(),
                     _field(
@@ -882,6 +897,42 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         ),
       ),
     );
+  }
+
+  String? _validatePassword(String? value) {
+    final password = value ?? '';
+
+    if (password.isEmpty) return 'Please enter a password.';
+    if (password.length < 8) {
+      return 'Password must be at least 8 characters.';
+    }
+    if (!RegExp(r'[A-Z]').hasMatch(password)) {
+      return 'Password must contain at least 1 uppercase letter.';
+    }
+    if (!RegExp(r'[a-z]').hasMatch(password)) {
+      return 'Password must contain at least 1 lowercase letter.';
+    }
+    if (!RegExp(r'[0-9]').hasMatch(password)) {
+      return 'Password must contain at least 1 number.';
+    }
+    if (!RegExp(r'[^A-Za-z0-9]').hasMatch(password)) {
+      return 'Password must contain at least 1 special character.';
+    }
+
+    return null;
+  }
+
+  String _toTitleCase(String value) {
+    final words = value
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty);
+
+    return words.map((word) {
+      final lower = word.toLowerCase();
+      if (lower.length == 1) return lower.toUpperCase();
+      return '${lower[0].toUpperCase()}${lower.substring(1)}';
+    }).join(' ');
   }
 
   String? Function(String?) _required(String message) {

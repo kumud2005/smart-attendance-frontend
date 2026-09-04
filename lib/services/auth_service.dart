@@ -18,7 +18,7 @@ class AuthService {
     final response = await _apiClient.post(
       '/auth/login',
       body: {
-        'email': email.trim(),
+        'email': email.trim().toLowerCase(),
         'password': password,
       },
     );
@@ -77,9 +77,9 @@ class AuthService {
       '/auth/register',
       body: {
         'role_name': 'STUDENT',
-        'email': email.trim(),
+        'email': email.trim().toLowerCase(),
         'password': password,
-        'full_name': fullName.trim(),
+        'full_name': _toTitleCase(fullName),
         if (phone != null &&
             phone.trim().isNotEmpty)
           'phone': phone.trim(),
@@ -126,9 +126,9 @@ class AuthService {
       '/auth/register',
       body: {
         'role_name': 'FACULTY',
-        'email': email.trim(),
+        'email': email.trim().toLowerCase(),
         'password': password,
-        'full_name': fullName.trim(),
+        'full_name': _toTitleCase(fullName),
         if (phone != null &&
             phone.trim().isNotEmpty)
           'phone': phone.trim(),
@@ -147,6 +147,23 @@ class AuthService {
     }
 
     return response;
+  }
+
+  // ============================================================
+  // REGISTRATION NORMALIZATION
+  // ============================================================
+
+  String _toTitleCase(String value) {
+    final words = value
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty);
+
+    return words.map((word) {
+      final lower = word.toLowerCase();
+      if (lower.length == 1) return lower.toUpperCase();
+      return '${lower[0].toUpperCase()}${lower.substring(1)}';
+    }).join(' ');
   }
 
   // ============================================================
