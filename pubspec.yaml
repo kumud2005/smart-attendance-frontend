@@ -20,6 +20,9 @@ dependencies:
   flutter_onnxruntime: ^1.8.4
   google_mlkit_face_detection: ^0.15.1
   public_file_saver: 1.1.0
+  file_picker: ^12.2.0
+  share_plus: ^13.3.0
+  cross_file: ^0.3.5+5
 
 dev_dependencies:
   flutter_test:

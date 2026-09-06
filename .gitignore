@@ -55,3 +55,8 @@ app.*.map.json
 
 # Large face recognition model - kept locally
 assets/models/w600k_r50.onnx
+
+# Temporary patch scripts and local backups
+*.before-*
+apply_*.py
+*_current.txt

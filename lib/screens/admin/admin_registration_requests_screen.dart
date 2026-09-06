@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/semantic_action_styles.dart';
 import '../../services/admin_service.dart';
 
 class AdminRegistrationRequestsScreen
@@ -388,12 +389,11 @@ class _AdminRegistrationRequestsScreenState
               ),
             ),
             FilledButton(
-              style: destructive
-                  ? FilledButton.styleFrom(
-                      backgroundColor:
-                          AppColors.error,
-                    )
-                  : null,
+              style: SemanticActionStyles.filled(
+                destructive
+                    ? SemanticActionStyles.destructive
+                    : SemanticActionStyles.positive,
+              ),
               onPressed: () {
                 Navigator.of(
                   dialogContext,
@@ -964,6 +964,9 @@ class _AdminRegistrationRequestsScreenState
                     ),
                   ),
                   OutlinedButton.icon(
+                    style: SemanticActionStyles.outlined(
+                      SemanticActionStyles.destructive,
+                    ),
                     onPressed:
                         _isProcessing
                             ? null
@@ -982,6 +985,9 @@ class _AdminRegistrationRequestsScreenState
                     ),
                   ),
                   FilledButton.icon(
+                    style: SemanticActionStyles.filled(
+                      SemanticActionStyles.positive,
+                    ),
                     onPressed:
                         _isProcessing
                             ? null
@@ -1016,7 +1022,7 @@ class _AdminRegistrationRequestsScreenState
         vertical: 5,
       ),
       decoration: BoxDecoration(
-        color: AppColors.warning
+        color: SemanticActionStyles.caution
             .withValues(
           alpha: 0.10,
         ),
@@ -1028,7 +1034,7 @@ class _AdminRegistrationRequestsScreenState
         'PENDING',
         style: TextStyle(
           color:
-              AppColors.warning,
+              SemanticActionStyles.caution,
           fontSize: 11,
           fontWeight:
               FontWeight.w700,

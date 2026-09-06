@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/semantic_action_styles.dart';
 import '../../services/admin_service.dart';
 
 class AdminAcademicStructureScreen extends StatefulWidget {
@@ -108,6 +109,7 @@ class _AdminAcademicStructureScreenState
     final codeController = TextEditingController();
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
+    final semestersController = TextEditingController(text: '8');
     final formKey = GlobalKey<FormState>();
 
     final saved = await showDialog<bool>(
@@ -158,6 +160,24 @@ class _AdminAcademicStructureScreenState
                           labelText: 'Description (optional)',
                         ),
                       ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: semestersController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Default Number of Semesters',
+                          hintText: 'Example: 8',
+                          helperText:
+                              'Used to pre-fill semester count when adding a course/branch.',
+                        ),
+                        validator: (value) {
+                          final count = int.tryParse(value?.trim() ?? '');
+                          if (count == null || count < 1 || count > 8) {
+                            return 'Enter a semester count between 1 and 8.';
+                          }
+                          return null;
+                        },
+                      ),
                     ],
                   ),
                 ),
@@ -182,6 +202,8 @@ class _AdminAcademicStructureScreenState
                               programCode: codeController.text,
                               programName: nameController.text,
                               description: descriptionController.text,
+                              defaultSemesters:
+                                  int.parse(semestersController.text.trim()),
                             );
                             if (!dialogContext.mounted) return;
                             Navigator.of(dialogContext).pop(true);
@@ -216,7 +238,184 @@ class _AdminAcademicStructureScreenState
     codeController.dispose();
     nameController.dispose();
     descriptionController.dispose();
+    semestersController.dispose();
     if (saved == true) await _loadAll();
+  }
+
+
+  Future<void> _openEditProgramDialog(
+    Map<String, dynamic> item,
+  ) async {
+    final programId = _asInt(item['program_id']);
+
+    if (programId == null) return;
+
+    final codeController = TextEditingController(
+      text: item['program_code']?.toString() ?? '',
+    );
+    final nameController = TextEditingController(
+      text: item['program_name']?.toString() ?? '',
+    );
+    final descriptionController = TextEditingController(
+      text: item['description']?.toString() ?? '',
+    );
+    final semestersController = TextEditingController(
+      text: (_asInt(item['default_semesters']) ?? 8).toString(),
+    );
+    final formKey = GlobalKey<FormState>();
+
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        bool saving = false;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Edit Program'),
+              content: SizedBox(
+                width: 520,
+                child: Form(
+                  key: formKey,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextFormField(
+                          controller: codeController,
+                          textCapitalization:
+                              TextCapitalization.characters,
+                          decoration: const InputDecoration(
+                            labelText: 'Program Code',
+                            hintText: 'Example: BTECH, MTECH, MCA',
+                          ),
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                                  ? 'Program code is required.'
+                                  : null,
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: nameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Program Name',
+                          ),
+                          validator: (value) =>
+                              value == null || value.trim().length < 2
+                                  ? 'Program name is required.'
+                                  : null,
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: descriptionController,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            labelText: 'Description (optional)',
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: semestersController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Default Number of Semesters',
+                            helperText:
+                                'This is the default for new courses/branches. Existing course durations are not changed automatically.',
+                          ),
+                          validator: (value) {
+                            final count =
+                                int.tryParse(value?.trim() ?? '');
+                            if (count == null ||
+                                count < 1 ||
+                                count > 8) {
+                              return 'Enter a semester count between 1 and 8.';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton.icon(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          if (!(formKey.currentState?.validate() ?? false)) {
+                            return;
+                          }
+
+                          setDialogState(() => saving = true);
+
+                          try {
+                            final result =
+                                await _adminService.updateProgram(
+                              programId: programId,
+                              programCode: codeController.text,
+                              programName: nameController.text,
+                              description: descriptionController.text,
+                              defaultSemesters: int.parse(
+                                semestersController.text.trim(),
+                              ),
+                            );
+
+                            if (!dialogContext.mounted) return;
+
+                            Navigator.of(dialogContext).pop(true);
+
+                            _showMessage(
+                              result['message']?.toString() ??
+                                  'Program updated successfully.',
+                            );
+                          } catch (error) {
+                            if (!dialogContext.mounted) return;
+
+                            setDialogState(() => saving = false);
+
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              SnackBar(
+                                content: Text(_cleanError(error)),
+                              ),
+                            );
+                          }
+                        },
+                  icon: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: Text(
+                    saving ? 'Saving...' : 'Save Changes',
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    codeController.dispose();
+    nameController.dispose();
+    descriptionController.dispose();
+    semestersController.dispose();
+
+    if (saved == true) {
+      await _loadAll();
+    }
   }
 
   Future<void> _openAddBranchDialog() async {
@@ -230,6 +429,18 @@ class _AdminAcademicStructureScreenState
     final formKey = GlobalKey<FormState>();
     int selectedProgramId =
         _asInt(_activePrograms.first['program_id']) ?? 0;
+
+    int defaultSemestersFor(int programId) {
+      final program = _activePrograms.firstWhere(
+        (item) => _asInt(item['program_id']) == programId,
+        orElse: () => <String, dynamic>{},
+      );
+      return _asInt(program['default_semesters']) ?? 8;
+    }
+
+    final semestersController = TextEditingController(
+      text: defaultSemestersFor(selectedProgramId).toString(),
+    );
 
     final saved = await showDialog<bool>(
       context: context,
@@ -268,9 +479,11 @@ class _AdminAcademicStructureScreenState
                             ? null
                             : (value) {
                                 if (value != null) {
-                                  setDialogState(
-                                    () => selectedProgramId = value,
-                                  );
+                                  setDialogState(() {
+                                    selectedProgramId = value;
+                                    semestersController.text =
+                                        defaultSemestersFor(value).toString();
+                                  });
                                 }
                               },
                       ),
@@ -299,6 +512,24 @@ class _AdminAcademicStructureScreenState
                                 ? 'Course / branch name is required.'
                                 : null,
                       ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: semestersController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Number of Semesters',
+                          hintText: 'Example: 8',
+                          helperText:
+                              'This controls which semester options are available for this course/branch.',
+                        ),
+                        validator: (value) {
+                          final count = int.tryParse(value?.trim() ?? '');
+                          if (count == null || count < 1 || count > 8) {
+                            return 'Enter a semester count between 1 and 8.';
+                          }
+                          return null;
+                        },
+                      ),
                     ],
                   ),
                 ),
@@ -323,6 +554,8 @@ class _AdminAcademicStructureScreenState
                               programId: selectedProgramId,
                               branchCode: codeController.text,
                               branchName: nameController.text,
+                              totalSemesters:
+                                  int.parse(semestersController.text.trim()),
                             );
                             if (!dialogContext.mounted) return;
                             Navigator.of(dialogContext).pop(true);
@@ -356,13 +589,251 @@ class _AdminAcademicStructureScreenState
 
     codeController.dispose();
     nameController.dispose();
+    semestersController.dispose();
     if (saved == true) await _loadAll();
+  }
+
+
+  Future<void> _openEditBranchDialog(
+    Map<String, dynamic> item,
+  ) async {
+    final branchId = _asInt(item['branch_id']);
+    final currentProgramId = _asInt(item['program_id']);
+
+    if (branchId == null || currentProgramId == null) return;
+
+    final codeController = TextEditingController(
+      text: item['branch_code']?.toString() ?? '',
+    );
+    final nameController = TextEditingController(
+      text: item['branch_name']?.toString() ?? '',
+    );
+    final semestersController = TextEditingController(
+      text: (_asInt(item['total_semesters']) ?? 8).toString(),
+    );
+    final formKey = GlobalKey<FormState>();
+
+    int selectedProgramId = currentProgramId;
+
+    final selectablePrograms = _programs.where((program) {
+      final id = _asInt(program['program_id']);
+      return program['is_active'] == true || id == currentProgramId;
+    }).toList();
+
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        bool saving = false;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Edit Course / Branch'),
+              content: SizedBox(
+                width: 540,
+                child: Form(
+                  key: formKey,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        DropdownButtonFormField<int>(
+                          key: ValueKey(
+                            'edit-program-$selectedProgramId',
+                          ),
+                          initialValue: selectedProgramId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Program',
+                            helperText:
+                                'Moving to another Program is allowed only when this course/branch has no linked academic records.',
+                          ),
+                          items: selectablePrograms.map((program) {
+                            final id =
+                                _asInt(program['program_id']) ?? 0;
+
+                            return DropdownMenuItem<int>(
+                              value: id,
+                              child: Text(
+                                '${program['program_code']} — '
+                                '${program['program_name']}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: saving
+                              ? null
+                              : (value) {
+                                  if (value != null) {
+                                    setDialogState(
+                                      () => selectedProgramId = value,
+                                    );
+                                  }
+                                },
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: codeController,
+                          textCapitalization:
+                              TextCapitalization.characters,
+                          decoration: const InputDecoration(
+                            labelText: 'Course / Branch Code',
+                          ),
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                                  ? 'Course / branch code is required.'
+                                  : null,
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: nameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Course / Branch Name',
+                          ),
+                          validator: (value) =>
+                              value == null || value.trim().length < 2
+                                  ? 'Course / branch name is required.'
+                                  : null,
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: semestersController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Number of Semesters',
+                            helperText:
+                                'You cannot reduce this below a semester that already contains subjects or sections.',
+                          ),
+                          validator: (value) {
+                            final count =
+                                int.tryParse(value?.trim() ?? '');
+
+                            if (count == null ||
+                                count < 1 ||
+                                count > 8) {
+                              return 'Enter a semester count between 1 and 8.';
+                            }
+
+                            return null;
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton.icon(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          if (!(formKey.currentState?.validate() ?? false)) {
+                            return;
+                          }
+
+                          setDialogState(() => saving = true);
+
+                          try {
+                            final result =
+                                await _adminService.updateBranch(
+                              branchId: branchId,
+                              programId: selectedProgramId,
+                              branchCode: codeController.text,
+                              branchName: nameController.text,
+                              totalSemesters: int.parse(
+                                semestersController.text.trim(),
+                              ),
+                            );
+
+                            if (!dialogContext.mounted) return;
+
+                            Navigator.of(dialogContext).pop(true);
+
+                            _showMessage(
+                              result['message']?.toString() ??
+                                  'Course / branch updated successfully.',
+                            );
+                          } catch (error) {
+                            if (!dialogContext.mounted) return;
+
+                            setDialogState(() => saving = false);
+
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              SnackBar(
+                                content: Text(_cleanError(error)),
+                              ),
+                            );
+                          }
+                        },
+                  icon: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: Text(
+                    saving ? 'Saving...' : 'Save Changes',
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    codeController.dispose();
+    nameController.dispose();
+    semestersController.dispose();
+
+    if (saved == true) {
+      await _loadAll();
+    }
   }
 
   Future<void> _toggleProgram(Map<String, dynamic> item) async {
     final id = _asInt(item['program_id']);
     if (id == null) return;
+
     final active = item['is_active'] == true;
+
+    if (active) {
+      final confirmed = await _confirmDeactivateCascade(
+        title: 'Deactivate Program?',
+        message:
+            'Deactivate ${item['program_code']} — ${item['program_name']}?\n\n'
+            'This will also deactivate every active Course / Branch and '
+            'Subject under this Program. Attendance history and academic '
+            'records will NOT be deleted.\n\n'
+            'If an attendance session is currently ACTIVE under this '
+            'Program, the operation will be blocked until that session is '
+            'completed or cancelled.',
+      );
+
+      if (!confirmed) return;
+    } else {
+      final confirmed = await _confirmActivate(
+        title: 'Activate Program?',
+        message:
+            'Activate ${item['program_code']} — ${item['program_name']}?\n\n'
+            'Only the Program itself will be activated. Courses / Branches '
+            'and Subjects that are currently inactive will remain inactive '
+            'and can be activated separately.',
+      );
+
+      if (!confirmed) return;
+    }
+
     await _runAction(
       'program-$id',
       () => active
@@ -389,7 +860,36 @@ class _AdminAcademicStructureScreenState
   Future<void> _toggleBranch(Map<String, dynamic> item) async {
     final id = _asInt(item['branch_id']);
     if (id == null) return;
+
     final active = item['is_active'] == true;
+
+    if (active) {
+      final confirmed = await _confirmDeactivateCascade(
+        title: 'Deactivate Course / Branch?',
+        message:
+            'Deactivate ${item['branch_code']} — ${item['branch_name']}?\n\n'
+            'This will also deactivate every active Subject under this '
+            'Course / Branch. Attendance history and academic records will '
+            'NOT be deleted.\n\n'
+            'If an attendance session is currently ACTIVE for one of its '
+            'Subjects, the operation will be blocked until that session is '
+            'completed or cancelled.',
+      );
+
+      if (!confirmed) return;
+    } else {
+      final confirmed = await _confirmActivate(
+        title: 'Activate Course / Branch?',
+        message:
+            'Activate ${item['branch_code']} — ${item['branch_name']}?\n\n'
+            'The parent Program must already be active. Only this Course / '
+            'Branch will be activated; inactive Subjects under it will '
+            'remain inactive and can be activated separately.',
+      );
+
+      if (!confirmed) return;
+    }
+
     await _runAction(
       'branch-$id',
       () => active
@@ -427,6 +927,118 @@ class _AdminAcademicStructureScreenState
       _showMessage(_cleanError(error), error: true);
       if (mounted) setState(() => _busyKey = null);
     }
+  }
+
+  Future<bool> _confirmActivate({
+    required String title,
+    required String message,
+  }) async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(
+                  Icons.check_circle_rounded,
+                  color: SemanticActionStyles.positive,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(title),
+                ),
+              ],
+            ),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 560,
+              ),
+              child: Text(
+                message,
+                style: const TextStyle(
+                  height: 1.45,
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () =>
+                    Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton.icon(
+                style: SemanticActionStyles.filled(
+                  SemanticActionStyles.positive,
+                ),
+                onPressed: () =>
+                    Navigator.of(dialogContext).pop(true),
+                icon: const Icon(
+                  Icons.play_circle_rounded,
+                ),
+                label: const Text(
+                  'Activate',
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<bool> _confirmDeactivateCascade({
+    required String title,
+    required String message,
+  }) async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: SemanticActionStyles.caution,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(title),
+                ),
+              ],
+            ),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 560,
+              ),
+              child: Text(
+                message,
+                style: const TextStyle(
+                  height: 1.45,
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () =>
+                    Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton.icon(
+                style: SemanticActionStyles.filled(
+                  SemanticActionStyles.caution,
+                ),
+                onPressed: () =>
+                    Navigator.of(dialogContext).pop(true),
+                icon: const Icon(
+                  Icons.pause_circle_rounded,
+                ),
+                label: const Text(
+                  'Deactivate',
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   Future<bool> _confirmDelete({
@@ -758,12 +1370,17 @@ class _AdminAcademicStructureScreenState
                       padding: const EdgeInsets.only(top: 5),
                       child: Text(item['description'].toString()),
                     ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Default semesters: ${item['default_semesters'] ?? 8}',
+                  ),
                 ],
               ),
             ),
             _actions(
               active: active,
               busy: busy,
+              onEdit: () => _openEditProgramDialog(item),
               onToggle: () => _toggleProgram(item),
               onDelete: () => _deleteProgram(item),
             ),
@@ -813,12 +1430,17 @@ class _AdminAcademicStructureScreenState
                   Text(
                     'Program: ${item['program_code']} — ${item['program_name']}',
                   ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Semesters: ${item['total_semesters'] ?? 8}',
+                  ),
                 ],
               ),
             ),
             _actions(
               active: active,
               busy: busy,
+              onEdit: () => _openEditBranchDialog(item),
               onToggle: () => _toggleBranch(item),
               onDelete: () => _deleteBranch(item),
             ),
@@ -831,6 +1453,7 @@ class _AdminAcademicStructureScreenState
   Widget _actions({
     required bool active,
     required bool busy,
+    required VoidCallback onEdit,
     required VoidCallback onToggle,
     required VoidCallback onDelete,
   }) {
@@ -841,15 +1464,40 @@ class _AdminAcademicStructureScreenState
         child: CircularProgressIndicator(strokeWidth: 3),
       );
     }
+
+    final toggleColor = active
+        ? SemanticActionStyles.caution
+        : SemanticActionStyles.positive;
+
     return Wrap(
       spacing: 8,
+      runSpacing: 8,
       children: [
         OutlinedButton.icon(
-          onPressed: onToggle,
-          icon: Icon(active ? Icons.pause_circle_rounded : Icons.play_circle_rounded),
-          label: Text(active ? 'Deactivate' : 'Activate'),
+          onPressed: onEdit,
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('Edit'),
         ),
         OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: toggleColor,
+            side: BorderSide(color: toggleColor),
+            backgroundColor: toggleColor.withValues(alpha: 0.08),
+          ),
+          onPressed: onToggle,
+          icon: Icon(
+            active
+                ? Icons.pause_circle_rounded
+                : Icons.play_circle_rounded,
+          ),
+          label: Text(
+            active ? 'Deactivate' : 'Activate',
+          ),
+        ),
+        OutlinedButton.icon(
+          style: SemanticActionStyles.outlined(
+            SemanticActionStyles.destructive,
+          ),
           onPressed: onDelete,
           icon: const Icon(Icons.delete_outline_rounded),
           label: const Text('Delete'),
@@ -859,12 +1507,30 @@ class _AdminAcademicStructureScreenState
   }
 
   Widget _statusChip(bool active) {
+    final statusColor = active
+        ? SemanticActionStyles.positive
+        : SemanticActionStyles.caution;
+
     return Chip(
-      avatar: Icon(
-        active ? Icons.check_circle_rounded : Icons.cancel_rounded,
-        size: 18,
+      backgroundColor:
+          statusColor.withValues(alpha: 0.10),
+      side: BorderSide(
+        color: statusColor.withValues(alpha: 0.45),
       ),
-      label: Text(active ? 'Active' : 'Inactive'),
+      avatar: Icon(
+        active
+            ? Icons.check_circle_rounded
+            : Icons.pause_circle_rounded,
+        size: 18,
+        color: statusColor,
+      ),
+      label: Text(
+        active ? 'Active' : 'Inactive',
+        style: TextStyle(
+          color: statusColor,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 

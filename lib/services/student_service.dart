@@ -58,6 +58,26 @@ class StudentService {
   }
 
   // ============================================================
+  // ACTIVE / RESUMABLE ATTENDANCE ATTEMPT
+  // ============================================================
+
+  Future<Map<String, dynamic>>
+      getActiveAttendanceAttempt() async {
+    final response =
+        await _apiClient.get(
+      '/student/attendance/active-attempt',
+    );
+
+    if (response is! Map<String, dynamic>) {
+      throw Exception(
+        'Invalid active attendance response received from server.',
+      );
+    }
+
+    return response;
+  }
+
+  // ============================================================
   // MARK ATTENDANCE USING QR
   // ============================================================
 

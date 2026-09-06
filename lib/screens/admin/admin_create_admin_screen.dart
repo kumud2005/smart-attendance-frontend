@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/semantic_action_styles.dart';
 import '../../services/admin_service.dart';
 
 class AdminCreateAdminScreen extends StatefulWidget {
@@ -75,8 +76,8 @@ class _AdminCreateAdminScreenState
         builder: (dialogContext) {
           return AlertDialog(
             icon: const Icon(
-              Icons.admin_panel_settings_rounded,
-              color: AppColors.primary,
+              Icons.check_circle_rounded,
+              color: SemanticActionStyles.positive,
               size: 44,
             ),
             title: const Text('Administrator Created'),
@@ -87,6 +88,9 @@ class _AdminCreateAdminScreenState
             ),
             actions: [
               FilledButton(
+                style: SemanticActionStyles.filled(
+                  SemanticActionStyles.positive,
+                ),
                 onPressed: () {
                   Navigator.of(dialogContext).pop();
                 },

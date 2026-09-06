@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import '../core/network/api_client.dart';
 import '../models/admin_dashboard_stats.dart';
 import '../models/admin_user.dart';
@@ -319,6 +322,29 @@ class AdminService {
     );
   }
 
+
+  Future<Map<String, dynamic>>
+      createFacultyAssignmentSection({
+    required int sourceSectionId,
+    required String sectionName,
+  }) async {
+    final response = await _apiClient.post(
+      '/admin/faculty-assignments/sections',
+      body: {
+        'source_section_id': sourceSectionId,
+        'section_name': sectionName.trim(),
+      },
+    );
+
+    if (response is Map<String, dynamic>) {
+      return response;
+    }
+
+    throw Exception(
+      'Invalid create-section response received from server.',
+    );
+  }
+
   Future<List<Map<String, dynamic>>>
       getFacultyAssignments({
     int? facultyId,
@@ -395,6 +421,40 @@ class AdminService {
   }
 
   Future<Map<String, dynamic>>
+      activateFacultyAssignment(
+    int assignmentId,
+  ) async {
+    final response = await _apiClient.patch(
+      '/admin/faculty-assignments/$assignmentId/activate',
+    );
+
+    if (response is Map<String, dynamic>) {
+      return response;
+    }
+
+    throw Exception(
+      'Invalid activate faculty-assignment response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>>
+      deleteFacultyAssignment(
+    int assignmentId,
+  ) async {
+    final response = await _apiClient.delete(
+      '/admin/faculty-assignments/$assignmentId',
+    );
+
+    if (response is Map<String, dynamic>) {
+      return response;
+    }
+
+    throw Exception(
+      'Invalid delete faculty-assignment response received from server.',
+    );
+  }
+
+  Future<Map<String, dynamic>>
       deactivateFacultyAssignment(
     int assignmentId,
   ) async {
@@ -434,6 +494,7 @@ class AdminService {
   Future<Map<String, dynamic>> createProgram({
     required String programCode,
     required String programName,
+    required int defaultSemesters,
     String? description,
   }) async {
     final response = await _apiClient.post(
@@ -441,6 +502,7 @@ class AdminService {
       body: {
         'program_code': programCode.trim(),
         'program_name': programName.trim(),
+        'default_semesters': defaultSemesters,
         if (description != null && description.trim().isNotEmpty)
           'description': description.trim(),
       },
@@ -449,6 +511,37 @@ class AdminService {
     return _parseMapResponse(
       response,
       'Invalid create-program response received from server.',
+    );
+  }
+
+
+  Future<Map<String, dynamic>> updateProgram({
+    required int programId,
+    required String programCode,
+    required String programName,
+    String? description,
+    required int defaultSemesters,
+  }) async {
+    if (programId <= 0) {
+      throw Exception('Invalid program ID.');
+    }
+
+    final response = await _apiClient.patch(
+      '/admin/programs/$programId',
+      body: {
+        'program_code': programCode.trim(),
+        'program_name': programName.trim(),
+        if (description != null && description.trim().isNotEmpty)
+          'description': description.trim()
+        else
+          'description': null,
+        'default_semesters': defaultSemesters,
+      },
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid update-program response received from server.',
     );
   }
 
@@ -506,6 +599,7 @@ class AdminService {
     required int programId,
     required String branchCode,
     required String branchName,
+    required int totalSemesters,
   }) async {
     final response = await _apiClient.post(
       '/admin/branches',
@@ -513,12 +607,41 @@ class AdminService {
         'program_id': programId,
         'branch_code': branchCode.trim(),
         'branch_name': branchName.trim(),
+        'total_semesters': totalSemesters,
       },
     );
 
     return _parseMapResponse(
       response,
       'Invalid create-course/branch response received from server.',
+    );
+  }
+
+
+  Future<Map<String, dynamic>> updateBranch({
+    required int branchId,
+    required int programId,
+    required String branchCode,
+    required String branchName,
+    required int totalSemesters,
+  }) async {
+    if (branchId <= 0) {
+      throw Exception('Invalid course/branch ID.');
+    }
+
+    final response = await _apiClient.patch(
+      '/admin/branches/$branchId',
+      body: {
+        'program_id': programId,
+        'branch_code': branchCode.trim(),
+        'branch_name': branchName.trim(),
+        'total_semesters': totalSemesters,
+      },
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid update-course/branch response received from server.',
     );
   }
 
@@ -605,6 +728,150 @@ class AdminService {
     );
   }
 
+
+  Future<Uint8List> downloadSubjectsCsv({
+    int? programId,
+    int? branchId,
+    int? semesterId,
+    String statusFilter = 'ALL',
+    String? search,
+  }) {
+    return _downloadSubjectExport(
+      format: 'csv',
+      programId: programId,
+      branchId: branchId,
+      semesterId: semesterId,
+      statusFilter: statusFilter,
+      search: search,
+      accept: 'text/csv',
+    );
+  }
+
+  Future<Uint8List> downloadSubjectsExcel({
+    int? programId,
+    int? branchId,
+    int? semesterId,
+    String statusFilter = 'ALL',
+    String? search,
+  }) {
+    return _downloadSubjectExport(
+      format: 'excel',
+      programId: programId,
+      branchId: branchId,
+      semesterId: semesterId,
+      statusFilter: statusFilter,
+      search: search,
+      accept:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+  }
+
+  Future<Uint8List> downloadSubjectsPdf({
+    int? programId,
+    int? branchId,
+    int? semesterId,
+    String statusFilter = 'ALL',
+    String? search,
+  }) {
+    return _downloadSubjectExport(
+      format: 'pdf',
+      programId: programId,
+      branchId: branchId,
+      semesterId: semesterId,
+      statusFilter: statusFilter,
+      search: search,
+      accept: 'application/pdf',
+    );
+  }
+
+  Future<Uint8List> _downloadSubjectExport({
+    required String format,
+    required String accept,
+    int? programId,
+    int? branchId,
+    int? semesterId,
+    String statusFilter = 'ALL',
+    String? search,
+  }) {
+    final query = <String, String>{
+      'status_filter': statusFilter,
+    };
+
+    if (programId != null) {
+      query['program_id'] = programId.toString();
+    }
+
+    if (branchId != null) {
+      query['branch_id'] = branchId.toString();
+    }
+
+    if (semesterId != null) {
+      query['semester_id'] = semesterId.toString();
+    }
+
+    if (search != null && search.trim().isNotEmpty) {
+      query['search'] = search.trim();
+    }
+
+    final endpoint = Uri(
+      path: '/admin/subjects/export/$format',
+      queryParameters: query,
+    ).toString();
+
+    return _apiClient.getBytes(
+      endpoint,
+      headers: {
+        'Accept': accept,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> previewSubjectImport({
+    required String fileName,
+    required List<int> bytes,
+  }) async {
+    return _subjectImport(
+      fileName: fileName,
+      bytes: bytes,
+      dryRun: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> importSubjectCatalog({
+    required String fileName,
+    required List<int> bytes,
+  }) async {
+    return _subjectImport(
+      fileName: fileName,
+      bytes: bytes,
+      dryRun: false,
+    );
+  }
+
+  Future<Map<String, dynamic>> _subjectImport({
+    required String fileName,
+    required List<int> bytes,
+    required bool dryRun,
+  }) async {
+    if (bytes.isEmpty) {
+      throw Exception('Selected file is empty.');
+    }
+
+    final response = await _apiClient.post(
+      '/admin/subjects/import',
+      body: {
+        'file_name': fileName,
+        'content_base64': base64Encode(bytes),
+        'dry_run': dryRun,
+      },
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid subject-import response received from server.',
+    );
+  }
+
   Future<Map<String, dynamic>> createSubject({
     required int programId,
     required int branchId,
@@ -628,6 +895,38 @@ class AdminService {
     return _parseMapResponse(
       response,
       'Invalid create-subject response received from server.',
+    );
+  }
+
+
+  Future<Map<String, dynamic>> updateSubject({
+    required int subjectId,
+    required int programId,
+    required int branchId,
+    required int semesterId,
+    required String subjectCode,
+    required String subjectName,
+    double? credits,
+  }) async {
+    if (subjectId <= 0) {
+      throw Exception('Invalid subject ID.');
+    }
+
+    final response = await _apiClient.patch(
+      '/admin/subjects/$subjectId',
+      body: {
+        'program_id': programId,
+        'branch_id': branchId,
+        'semester_id': semesterId,
+        'subject_code': subjectCode.trim(),
+        'subject_name': subjectName.trim(),
+        'credits': ?credits,
+      },
+    );
+
+    return _parseMapResponse(
+      response,
+      'Invalid update-subject response received from server.',
     );
   }
 

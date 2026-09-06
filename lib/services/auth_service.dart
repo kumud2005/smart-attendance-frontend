@@ -33,6 +33,61 @@ class AuthService {
   }
 
   // ============================================================
+  // PASSWORD RESET - REQUEST
+  // ============================================================
+
+  Future<Map<String, dynamic>>
+      requestPasswordReset({
+    required String email,
+  }) async {
+    final response =
+        await _apiClient.post(
+      '/auth/password-reset/request',
+      body: {
+        'email':
+            email.trim().toLowerCase(),
+      },
+    );
+
+    if (response is! Map<String, dynamic>) {
+      throw Exception(
+        'Invalid password reset response received from server.',
+      );
+    }
+
+    return response;
+  }
+
+  // ============================================================
+  // PASSWORD RESET - CONFIRM
+  // ============================================================
+
+  Future<Map<String, dynamic>>
+      confirmPasswordReset({
+    required String resetToken,
+    required String newPassword,
+  }) async {
+    final response =
+        await _apiClient.post(
+      '/auth/password-reset/confirm',
+      body: {
+        'reset_token':
+            resetToken.trim(),
+        'new_password':
+            newPassword,
+      },
+    );
+
+    if (response is! Map<String, dynamic>) {
+      throw Exception(
+        'Invalid password reset confirmation received from server.',
+      );
+    }
+
+    return response;
+  }
+
+  // ============================================================
   // REGISTRATION OPTIONS
   // ============================================================
 
@@ -67,9 +122,12 @@ class AuthService {
     required String email,
     required String password,
     required String fullName,
+    required int programId,
+    required int branchId,
     required String enrollmentNumber,
     required String rollNumber,
     required String dateOfBirth,
+    required String abcId,
     required int studentSectionId,
     String? phone,
   }) async {
@@ -83,10 +141,13 @@ class AuthService {
         if (phone != null &&
             phone.trim().isNotEmpty)
           'phone': phone.trim(),
+        'program_id': programId,
+        'branch_id': branchId,
         'enrollment_number':
             enrollmentNumber.trim(),
         'roll_number': rollNumber.trim(),
         'date_of_birth': dateOfBirth,
+        'abc_id': abcId.trim(),
         'student_section_id':
             studentSectionId,
       },
@@ -109,8 +170,9 @@ class AuthService {
     required String email,
     required String password,
     required String fullName,
+    required int programId,
+    required int branchId,
     required String employeeId,
-    required String department,
     required String designation,
     required List<Map<String, dynamic>>
         facultyAssignments,
@@ -132,8 +194,9 @@ class AuthService {
         if (phone != null &&
             phone.trim().isNotEmpty)
           'phone': phone.trim(),
+        'program_id': programId,
+        'branch_id': branchId,
         'employee_id': employeeId.trim(),
-        'department': department.trim(),
         'designation': designation.trim(),
         'faculty_assignments':
             facultyAssignments,

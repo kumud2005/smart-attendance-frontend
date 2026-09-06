@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/semantic_action_styles.dart';
 import '../../services/admin_service.dart';
 
 class AdminFacultyAssignmentsScreen
@@ -40,7 +41,7 @@ class _AdminFacultyAssignmentsScreenState
   int? _selectedFacultyId;
   int? _selectedSemesterId;
   int? _selectedSectionId;
-  int? _selectedSubjectId;
+  final Set<int> _selectedSubjectIds = <int>{};
 
   String _searchQuery = '';
 
@@ -65,16 +66,50 @@ class _AdminFacultyAssignmentsScreenState
       get _filteredSubjects {
     final semesterId =
         _selectedSemesterId;
+    final sectionId =
+        _selectedSectionId;
 
     if (semesterId == null) {
       return <Map<String, dynamic>>[];
     }
 
+    final section = sectionId == null
+        ? null
+        : _findById(
+            _sections,
+            'section_id',
+            sectionId,
+          );
+
+    final sectionProgramId =
+        _readInt(section?['program_id']);
+    final sectionBranchId =
+        _readInt(section?['branch_id']);
+
     return _subjects.where((item) {
-      return _readInt(
-            item['semester_id'],
-          ) ==
-          semesterId;
+      if (_readInt(item['semester_id']) !=
+          semesterId) {
+        return false;
+      }
+
+      final subjectProgramId =
+          _readInt(item['program_id']);
+      final subjectBranchId =
+          _readInt(item['branch_id']);
+
+      if (sectionProgramId != null &&
+          subjectProgramId != null &&
+          subjectProgramId != sectionProgramId) {
+        return false;
+      }
+
+      if (sectionBranchId != null &&
+          subjectBranchId != null &&
+          subjectBranchId != sectionBranchId) {
+        return false;
+      }
+
+      return true;
     }).toList();
   }
 
@@ -232,7 +267,7 @@ class _AdminFacultyAssignmentsScreenState
     setState(() {
       _selectedSemesterId = value;
       _selectedSectionId = null;
-      _selectedSubjectId = null;
+      _selectedSubjectIds.clear();
     });
   }
 
@@ -244,8 +279,25 @@ class _AdminFacultyAssignmentsScreenState
         _selectedSemesterId;
     final sectionId =
         _selectedSectionId;
-    final subjectId =
-        _selectedSubjectId;
+
+    final validSubjectIds =
+        _filteredSubjects
+            .map(
+              (item) =>
+                  _readInt(
+                item['subject_id'],
+              ),
+            )
+            .whereType<int>()
+            .toSet();
+
+    final subjectIds =
+        _selectedSubjectIds
+            .where(
+              validSubjectIds.contains,
+            )
+            .toList()
+          ..sort();
 
     if (facultyId == null) {
       _showMessage(
@@ -271,28 +323,98 @@ class _AdminFacultyAssignmentsScreenState
       return;
     }
 
-    if (subjectId == null) {
+    if (subjectIds.isEmpty) {
       _showMessage(
-        'Please select a Subject.',
+        'Please select at least one Subject.',
         isError: true,
       );
       return;
     }
+
+    final activeExistingIds =
+        _assignments
+            .where(
+              (item) =>
+                  _readBool(
+                    item['is_active'],
+                  ) &&
+                  _readInt(
+                        item['faculty_id'],
+                      ) ==
+                      facultyId &&
+                  _readInt(
+                        item['section_id'],
+                      ) ==
+                      sectionId,
+            )
+            .map(
+              (item) =>
+                  _readInt(
+                item['subject_id'],
+              ),
+            )
+            .whereType<int>()
+            .toSet();
+
+    final idsToSave =
+        subjectIds
+            .where(
+              (id) =>
+                  !activeExistingIds
+                      .contains(id),
+            )
+            .toList();
+
+    final alreadyAssignedCount =
+        subjectIds.length -
+            idsToSave.length;
+
+    if (idsToSave.isEmpty) {
+      _showMessage(
+        'All selected subjects are already actively assigned '
+        'to this Faculty and Section.',
+        isError: true,
+      );
+      return;
+    }
+
+    final previewLines =
+        idsToSave
+            .take(8)
+            .map(
+              (id) =>
+                  '• ${_subjectLabel(id)}',
+            )
+            .join('\n');
+
+    final remaining =
+        idsToSave.length - 8;
 
     final confirmed =
         await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Confirm Faculty Assignment',
+          title: Text(
+            idsToSave.length == 1
+                ? 'Confirm Faculty Assignment'
+                : 'Confirm ${idsToSave.length} Subject Assignments',
           ),
-          content: Text(
-            '${_facultyLabel(facultyId)}\n\n'
-            '${_semesterLabel(semesterId)}\n'
-            '${_sectionLabel(sectionId)}\n'
-            '${_subjectLabel(subjectId)}\n\n'
-            'Assign this academic scope to the selected Faculty member?',
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: 560,
+            ),
+            child: SingleChildScrollView(
+              child: Text(
+                '${_facultyLabel(facultyId)}\n'
+                '${_semesterLabel(semesterId)} • '
+                '${_sectionLabel(sectionId)}\n\n'
+                '$previewLines'
+                '${remaining > 0 ? '\n• +$remaining more subject(s)' : ''}'
+                '${alreadyAssignedCount > 0 ? '\n\n$alreadyAssignedCount already-active subject(s) will be skipped.' : ''}'
+                '\n\nAssign the selected subjects to this Faculty member?',
+              ),
+            ),
           ),
           actions: [
             TextButton(
@@ -301,8 +423,7 @@ class _AdminFacultyAssignmentsScreenState
                   dialogContext,
                 ).pop(false);
               },
-              child:
-                  const Text('Cancel'),
+              child: const Text('Cancel'),
             ),
             FilledButton(
               onPressed: () {
@@ -310,8 +431,11 @@ class _AdminFacultyAssignmentsScreenState
                   dialogContext,
                 ).pop(true);
               },
-              child:
-                  const Text('Assign'),
+              child: Text(
+                idsToSave.length == 1
+                    ? 'Assign'
+                    : 'Assign ${idsToSave.length}',
+              ),
             ),
           ],
         );
@@ -327,38 +451,615 @@ class _AdminFacultyAssignmentsScreenState
       _isSaving = true;
     });
 
+    var successCount = 0;
+    final failedSubjects = <String>[];
+
     try {
-      final response =
+      for (final subjectId in idsToSave) {
+        try {
           await _adminService
               .createFacultyAssignment(
-        facultyId: facultyId,
-        semesterId: semesterId,
-        sectionId: sectionId,
-        subjectId: subjectId,
-      );
+            facultyId: facultyId,
+            semesterId: semesterId,
+            sectionId: sectionId,
+            subjectId: subjectId,
+          );
+
+          successCount++;
+        } catch (error) {
+          failedSubjects.add(
+            '${_subjectLabel(subjectId)}: '
+            '${_cleanErrorMessage(error)}',
+          );
+        }
+      }
 
       if (!mounted) {
         return;
       }
 
-      final message =
-          response['message']
-              ?.toString()
-              .trim();
+      await _reloadAssignments();
 
-      _showMessage(
-        message == null ||
-                message.isEmpty
-            ? 'Faculty assignment saved successfully.'
-            : message,
-      );
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
-        _selectedSectionId = null;
-        _selectedSubjectId = null;
+        _selectedSubjectIds.clear();
       });
 
-      await _reloadAssignments();
+      if (failedSubjects.isEmpty) {
+        final skippedText =
+            alreadyAssignedCount > 0
+                ? ' $alreadyAssignedCount already-active assignment(s) were skipped.'
+                : '';
+
+        _showMessage(
+          '$successCount subject assignment(s) saved successfully.'
+          '$skippedText',
+        );
+      } else {
+        _showMessage(
+          '$successCount assignment(s) saved. '
+          '${failedSubjects.length} failed. '
+          '${failedSubjects.first}',
+          isError: true,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+
+  Future<void>
+      _openSubjectMultiSelect() async {
+    if (_selectedSemesterId == null) {
+      _showMessage(
+        'Please select a Semester first.',
+        isError: true,
+      );
+      return;
+    }
+
+    if (_selectedSectionId == null) {
+      _showMessage(
+        'Please select a Section first.',
+        isError: true,
+      );
+      return;
+    }
+
+    final available =
+        _filteredSubjects;
+
+    if (available.isEmpty) {
+      _showMessage(
+        'No active subjects are available for this Section and Semester.',
+        isError: true,
+      );
+      return;
+    }
+
+    final availableIds =
+        available
+            .map(
+              (item) =>
+                  _readInt(
+                item['subject_id'],
+              ),
+            )
+            .whereType<int>()
+            .toSet();
+
+    final initialSelection =
+        _selectedSubjectIds
+            .where(
+              availableIds.contains,
+            )
+            .toSet();
+
+    final result =
+        await showDialog<Set<int>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final selected =
+            Set<int>.from(
+          initialSelection,
+        );
+
+        var query = '';
+
+        return StatefulBuilder(
+          builder: (
+            context,
+            setDialogState,
+          ) {
+            final normalizedQuery =
+                query.trim().toLowerCase();
+
+            final visible =
+                available.where(
+              (item) {
+                if (normalizedQuery.isEmpty) {
+                  return true;
+                }
+
+                final searchable =
+                    '${item['subject_code'] ?? ''} '
+                    '${item['subject_name'] ?? ''}'
+                        .toLowerCase();
+
+                return searchable.contains(
+                  normalizedQuery,
+                );
+              },
+            ).toList();
+
+            final allVisibleSelected =
+                visible.isNotEmpty &&
+                    visible.every(
+                      (item) {
+                        final id =
+                            _readInt(
+                          item['subject_id'],
+                        );
+
+                        return id != null &&
+                            selected.contains(
+                              id,
+                            );
+                      },
+                    );
+
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(
+                    Icons.checklist_rounded,
+                    color: AppColors.primary,
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Select Subjects',
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 650,
+                height: 500,
+                child: Column(
+                  children: [
+                    TextField(
+                      autofocus: true,
+                      decoration:
+                          const InputDecoration(
+                        hintText:
+                            'Search by subject code or name',
+                        prefixIcon: Icon(
+                          Icons.search_rounded,
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          query = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(
+                      height: 10,
+                    ),
+                    Row(
+                      children: [
+                        TextButton.icon(
+                          onPressed:
+                              visible.isEmpty
+                                  ? null
+                                  : () {
+                                      setDialogState(
+                                        () {
+                                          if (allVisibleSelected) {
+                                            for (final item
+                                                in visible) {
+                                              final id =
+                                                  _readInt(
+                                                item['subject_id'],
+                                              );
+
+                                              if (id != null) {
+                                                selected.remove(id);
+                                              }
+                                            }
+                                          } else {
+                                            for (final item
+                                                in visible) {
+                                              final id =
+                                                  _readInt(
+                                                item['subject_id'],
+                                              );
+
+                                              if (id != null) {
+                                                selected.add(id);
+                                              }
+                                            }
+                                          }
+                                        },
+                                      );
+                                    },
+                          icon: Icon(
+                            allVisibleSelected
+                                ? Icons.deselect_rounded
+                                : Icons.select_all_rounded,
+                          ),
+                          label: Text(
+                            allVisibleSelected
+                                ? 'Deselect visible'
+                                : 'Select visible',
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${selected.length} selected',
+                          style:
+                              const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontWeight:
+                                FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(
+                      height: 1,
+                    ),
+                    Expanded(
+                      child:
+                          visible.isEmpty
+                              ? const Center(
+                                  child: Text(
+                                    'No matching subjects.',
+                                  ),
+                                )
+                              : ListView.builder(
+                                  itemCount:
+                                      visible.length,
+                                  itemBuilder:
+                                      (
+                                    context,
+                                    index,
+                                  ) {
+                                    final item =
+                                        visible[index];
+
+                                    final id =
+                                        _readInt(
+                                      item['subject_id'],
+                                    );
+
+                                    if (id == null) {
+                                      return const SizedBox.shrink();
+                                    }
+
+                                    final checked =
+                                        selected.contains(id);
+
+                                    return CheckboxListTile(
+                                      value: checked,
+                                      controlAffinity:
+                                          ListTileControlAffinity.leading,
+                                      title: Text(
+                                        _value(
+                                          item['subject_code'],
+                                        ),
+                                        style:
+                                            const TextStyle(
+                                          fontWeight:
+                                              FontWeight.w700,
+                                        ),
+                                      ),
+                                      subtitle: Text(
+                                        _value(
+                                          item['subject_name'],
+                                        ),
+                                      ),
+                                      onChanged:
+                                          (value) {
+                                        setDialogState(
+                                          () {
+                                            if (value == true) {
+                                              selected.add(id);
+                                            } else {
+                                              selected.remove(id);
+                                            }
+                                          },
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(
+                      dialogContext,
+                    ).pop();
+                  },
+                  child: const Text(
+                    'Cancel',
+                  ),
+                ),
+                TextButton(
+                  onPressed:
+                      selected.isEmpty
+                          ? null
+                          : () {
+                              setDialogState(
+                                () {
+                                  selected.clear();
+                                },
+                              );
+                            },
+                  child: const Text(
+                    'Clear',
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(
+                      dialogContext,
+                    ).pop(
+                      Set<int>.from(
+                        selected,
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.check_rounded,
+                  ),
+                  label: Text(
+                    'Apply (${selected.length})',
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted ||
+        result == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedSubjectIds
+        ..clear()
+        ..addAll(result);
+    });
+  }
+
+  Future<void>
+      _addSection() async {
+    final semesterId =
+        _selectedSemesterId;
+
+    if (semesterId == null) {
+      _showMessage(
+        'Please select a Semester first.',
+        isError: true,
+      );
+      return;
+    }
+
+    int? sourceSectionId =
+        _selectedSectionId;
+
+    if (sourceSectionId == null &&
+        _filteredSections.length == 1) {
+      sourceSectionId =
+          _readInt(
+        _filteredSections.first['section_id'],
+      );
+    }
+
+    if (sourceSectionId == null) {
+      _showMessage(
+        _filteredSections.isEmpty
+            ? 'No existing Section is available to copy this academic scope from.'
+            : 'Select an existing Section first. The new Section will copy its Program, Branch, Academic Year and Semester.',
+        isError: true,
+      );
+      return;
+    }
+
+    final sourceLabel =
+        _sectionLabel(
+      sourceSectionId,
+    );
+
+    final controller =
+        TextEditingController();
+
+    final newName =
+        await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        String? error;
+
+        return StatefulBuilder(
+          builder: (
+            context,
+            setDialogState,
+          ) {
+            return AlertDialog(
+              title: const Text(
+                'Add Section',
+              ),
+              content:
+                  ConstrainedBox(
+                constraints:
+                    const BoxConstraints(
+                  maxWidth: 460,
+                ),
+                child: Column(
+                  mainAxisSize:
+                      MainAxisSize.min,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'The new section will use the same academic scope as '
+                      '$sourceLabel (${_semesterLabel(semesterId)}).',
+                      style:
+                          const TextStyle(
+                        color:
+                            AppColors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(
+                      height: 16,
+                    ),
+                    TextField(
+                      controller:
+                          controller,
+                      autofocus: true,
+                      textCapitalization:
+                          TextCapitalization.characters,
+                      decoration:
+                          InputDecoration(
+                        labelText:
+                            'Section',
+                        hintText:
+                            'e.g. B',
+                        prefixText:
+                            'Section ',
+                        errorText:
+                            error,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(
+                      dialogContext,
+                    ).pop();
+                  },
+                  child:
+                      const Text(
+                    'Cancel',
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: () {
+                    final value =
+                        controller.text.trim();
+
+                    if (value.isEmpty) {
+                      setDialogState(
+                        () {
+                          error =
+                              'Enter a section name.';
+                        },
+                      );
+                      return;
+                    }
+
+                    Navigator.of(
+                      dialogContext,
+                    ).pop(value);
+                  },
+                  icon: const Icon(
+                    Icons.add_rounded,
+                  ),
+                  label: const Text(
+                    'Add Section',
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (!mounted ||
+        newName == null) {
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final response =
+          await _adminService
+              .createFacultyAssignmentSection(
+        sourceSectionId:
+            sourceSectionId,
+        sectionName:
+            newName,
+      );
+
+      final newSectionId =
+          _readInt(
+        response['section_id'],
+      );
+
+      final options =
+          await _adminService
+              .getFacultyAssignmentOptions();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _semesters =
+            _readMapList(
+          options['semesters'],
+        );
+        _sections =
+            _readMapList(
+          options['sections'],
+        );
+        _subjects =
+            _readMapList(
+          options['subjects'],
+        );
+
+        if (newSectionId != null) {
+          _selectedSectionId =
+              newSectionId;
+        }
+
+        _selectedSubjectIds.clear();
+      });
+
+      _showMessage(
+        response['message']
+                ?.toString() ??
+            'Section added successfully.',
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -373,6 +1074,165 @@ class _AdminFacultyAssignmentsScreenState
         setState(() {
           _isSaving = false;
         });
+      }
+    }
+  }
+
+
+  Future<void> _activate(
+    Map<String, dynamic> assignment,
+  ) async {
+    final assignmentId =
+        _readInt(assignment['assignment_id']);
+
+    if (assignmentId == null) {
+      _showMessage(
+        'Invalid assignment ID.',
+        isError: true,
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Activate Assignment'),
+        content: Text(
+          'Activate this Faculty subject allotment?\n\n'
+          '${_value(assignment['faculty_name'])}\n'
+          '${_semesterFromAssignment(assignment)} • '
+          'Section ${_value(assignment['section_name'])}\n'
+          '${_value(assignment['subject_code'])} - '
+          '${_value(assignment['subject_name'])}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            style: SemanticActionStyles.filled(
+              SemanticActionStyles.positive,
+            ),
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.play_circle_rounded),
+            label: const Text('Activate'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final response = await _adminService
+          .activateFacultyAssignment(assignmentId);
+
+      if (!mounted) return;
+
+      _showMessage(
+        response['message']?.toString() ??
+            'Faculty assignment activated successfully.',
+      );
+
+      await _reloadAssignments();
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(
+        _cleanErrorMessage(error),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  Future<void> _deleteAssignment(
+    Map<String, dynamic> assignment,
+  ) async {
+    final assignmentId =
+        _readInt(assignment['assignment_id']);
+
+    if (assignmentId == null) {
+      _showMessage(
+        'Invalid assignment ID.',
+        isError: true,
+      );
+      return;
+    }
+
+    if (_readBool(assignment['is_active'])) {
+      _showMessage(
+        'Deactivate this assignment before deleting it permanently.',
+        isError: true,
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Assignment Permanently?'),
+        content: Text(
+          'Delete this unused Faculty subject allotment permanently?\n\n'
+          '${_value(assignment['faculty_name'])}\n'
+          '${_semesterFromAssignment(assignment)} • '
+          'Section ${_value(assignment['section_name'])}\n'
+          '${_value(assignment['subject_code'])} - '
+          '${_value(assignment['subject_name'])}\n\n'
+          'Assignments that have attendance-session history cannot be deleted. '
+          'They must remain deactivated to preserve history.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            style: SemanticActionStyles.filled(
+              SemanticActionStyles.destructive,
+            ),
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.delete_forever_rounded),
+            label: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final response = await _adminService
+          .deleteFacultyAssignment(assignmentId);
+
+      if (!mounted) return;
+
+      _showMessage(
+        response['message']?.toString() ??
+            'Faculty assignment deleted permanently.',
+      );
+
+      await _reloadAssignments();
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(
+        _cleanErrorMessage(error),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
       }
     }
   }
@@ -421,10 +1281,8 @@ class _AdminFacultyAssignmentsScreenState
                   const Text('Cancel'),
             ),
             FilledButton(
-              style:
-                  FilledButton.styleFrom(
-                backgroundColor:
-                    AppColors.error,
+              style: SemanticActionStyles.filled(
+                SemanticActionStyles.caution,
               ),
               onPressed: () {
                 Navigator.of(
@@ -640,7 +1498,7 @@ class _AdminFacultyAssignmentsScreenState
               height: 8,
             ),
             const Text(
-              'Choose one active Faculty member, Semester, Section and Subject.',
+              'Choose one active Faculty member and academic scope, then select one or more Subjects.',
               style: TextStyle(
                 color: AppColors
                     .textSecondary,
@@ -728,90 +1586,85 @@ class _AdminFacultyAssignmentsScreenState
             const SizedBox(
               height: 16,
             ),
-            _dropdown(
-              label: 'Section',
-              value:
-                  _selectedSectionId,
-              items:
-                  _filteredSections.map(
-                (item) {
-                  final id =
-                      _readInt(
-                    item['section_id'],
-                  );
+            Row(
+              crossAxisAlignment:
+                  CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: _dropdown(
+                    label: 'Section',
+                    value:
+                        _selectedSectionId,
+                    items:
+                        _filteredSections
+                            .map(
+                      (item) {
+                        final id =
+                            _readInt(
+                          item['section_id'],
+                        );
 
-                  if (id == null) {
-                    return null;
-                  }
+                        if (id == null) {
+                          return null;
+                        }
 
-                  return DropdownMenuItem<
-                      int>(
-                    value: id,
-                    child: Text(
-                      _sectionLabel(id),
+                        return DropdownMenuItem<
+                            int>(
+                          value: id,
+                          child: Text(
+                            _sectionLabel(id),
+                          ),
+                        );
+                      },
+                    ).whereType<
+                        DropdownMenuItem<
+                            int>>().toList(),
+                    onChanged:
+                        _selectedSemesterId ==
+                                    null ||
+                                _isSaving
+                            ? null
+                            : (value) {
+                                setState(
+                                  () {
+                                    _selectedSectionId =
+                                        value;
+                                    _selectedSubjectIds
+                                        .clear();
+                                  },
+                                );
+                              },
+                  ),
+                ),
+                const SizedBox(
+                  width: 10,
+                ),
+                SizedBox(
+                  height: 48,
+                  child:
+                      OutlinedButton.icon(
+                    onPressed:
+                        _selectedSemesterId ==
+                                    null ||
+                                _isSaving ||
+                                _filteredSections
+                                    .isEmpty
+                            ? null
+                            : _addSection,
+                    icon: const Icon(
+                      Icons.add_rounded,
                     ),
-                  );
-                },
-              ).whereType<
-                  DropdownMenuItem<
-                      int>>().toList(),
-              onChanged:
-                  _selectedSemesterId ==
-                              null ||
-                          _isSaving
-                      ? null
-                      : (value) {
-                          setState(() {
-                            _selectedSectionId =
-                                value;
-                          });
-                        },
+                    label: const Text(
+                      'Add',
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(
               height: 16,
             ),
-            _dropdown(
-              label: 'Subject',
-              value:
-                  _selectedSubjectId,
-              items:
-                  _filteredSubjects.map(
-                (item) {
-                  final id =
-                      _readInt(
-                    item['subject_id'],
-                  );
-
-                  if (id == null) {
-                    return null;
-                  }
-
-                  return DropdownMenuItem<
-                      int>(
-                    value: id,
-                    child: Text(
-                      _subjectLabel(id),
-                      overflow:
-                          TextOverflow
-                              .ellipsis,
-                    ),
-                  );
-                },
-              ).whereType<
-                  DropdownMenuItem<
-                      int>>().toList(),
-              onChanged:
-                  _selectedSemesterId ==
-                              null ||
-                          _isSaving
-                      ? null
-                      : (value) {
-                          setState(() {
-                            _selectedSubjectId =
-                                value;
-                          });
-                        },
-            ),
+            _subjectMultiSelectField(),
             const SizedBox(
               height: 20,
             ),
@@ -849,7 +1702,7 @@ class _AdminFacultyAssignmentsScreenState
               height: 12,
             ),
             const Text(
-              'To give the same Faculty multiple subjects or sections, save each assignment separately. Existing inactive combinations can be reactivated by the backend.',
+              'Select multiple Subjects in one popup and assign them together. Use Add beside Section to create another section in the same academic scope.',
               style: TextStyle(
                 color: AppColors
                     .textSecondary,
@@ -877,26 +1730,7 @@ class _AdminFacultyAssignmentsScreenState
         if (assignments.isEmpty)
           _buildEmptyState()
         else
-          ...List.generate(
-            assignments.length,
-            (index) {
-              return Padding(
-                padding:
-                    EdgeInsets.only(
-                  bottom: index ==
-                          assignments
-                                  .length -
-                              1
-                      ? 0
-                      : 10,
-                ),
-                child:
-                    _buildAssignmentCard(
-                  assignments[index],
-                ),
-              );
-            },
-          ),
+          _buildAssignmentTree(assignments),
       ],
     );
 
@@ -925,7 +1759,7 @@ class _AdminFacultyAssignmentsScreenState
               children: [
                 const Expanded(
                   child: Text(
-                    'Assignment History',
+                    'Faculty Subject Allotment Tree',
                     style:
                         TextStyle(
                       color: AppColors
@@ -982,167 +1816,371 @@ class _AdminFacultyAssignmentsScreenState
     );
   }
 
-  Widget _buildAssignmentCard(
-    Map<String, dynamic> item,
+  Widget _buildAssignmentTree(
+    List<Map<String, dynamic>> assignments,
   ) {
-    final active =
-        _readBool(item['is_active']);
+    final facultyGroups =
+        <int, List<Map<String, dynamic>>>{};
 
-    final facultyName =
-        _value(item['faculty_name']);
-    final employeeId =
-        _value(item['employee_id']);
-    final subjectCode =
-        _value(item['subject_code']);
-    final subjectName =
-        _value(item['subject_name']);
-    final sectionName =
-        _value(item['section_name']);
+    for (final item in assignments) {
+      final facultyId = _readInt(item['faculty_id']);
+      if (facultyId == null) continue;
+      facultyGroups.putIfAbsent(
+        facultyId,
+        () => <Map<String, dynamic>>[],
+      ).add(item);
+    }
+
+    final facultyIds = facultyGroups.keys.toList()
+      ..sort((a, b) {
+        final aName = _value(
+          facultyGroups[a]!.first['faculty_name'],
+        ).toLowerCase();
+        final bName = _value(
+          facultyGroups[b]!.first['faculty_name'],
+        ).toLowerCase();
+        return aName.compareTo(bName);
+      });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var index = 0;
+            index < facultyIds.length;
+            index++)
+          Padding(
+            padding: EdgeInsets.only(
+              bottom:
+                  index == facultyIds.length - 1 ? 0 : 10,
+            ),
+            child: _buildFacultyTreeNode(
+              facultyIds[index],
+              facultyGroups[facultyIds[index]]!,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildFacultyTreeNode(
+    int facultyId,
+    List<Map<String, dynamic>> items,
+  ) {
+    final first = items.first;
+    final facultyName = _value(first['faculty_name']);
+    final employeeId = _value(first['employee_id']);
+    final activeCount = items
+        .where((item) => _readBool(item['is_active']))
+        .length;
+
+    final semesterGroups =
+        <int, List<Map<String, dynamic>>>{};
+
+    for (final item in items) {
+      final semesterId = _readInt(item['semester_id']);
+      if (semesterId == null) continue;
+      semesterGroups.putIfAbsent(
+        semesterId,
+        () => <Map<String, dynamic>>[],
+      ).add(item);
+    }
+
+    final semesterIds = semesterGroups.keys.toList()
+      ..sort((a, b) {
+        final aNumber = _readInt(
+              semesterGroups[a]!.first['semester_number'],
+            ) ??
+            999;
+        final bNumber = _readInt(
+              semesterGroups[b]!.first['semester_number'],
+            ) ??
+            999;
+        return aNumber.compareTo(bNumber);
+      });
 
     return Card(
       elevation: 0,
-      child: Padding(
-        padding:
-            const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.stretch,
+      child: ExpansionTile(
+        key: PageStorageKey<String>(
+          'faculty-allotment-$facultyId',
+        ),
+        leading: CircleAvatar(
+          backgroundColor: AppColors.surfaceSoft,
+          child: const Icon(
+            Icons.co_present_rounded,
+            color: AppColors.primary,
+          ),
+        ),
+        title: Text(
+          facultyName,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        subtitle: Text(
+          'Employee ID: $employeeId • '
+          '${items.length} allotment(s) • $activeCount active',
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+          ),
+        ),
+        childrenPadding: const EdgeInsets.only(
+          left: 12,
+          right: 12,
+          bottom: 12,
+        ),
+        children: [
+          for (final semesterId in semesterIds)
+            _buildSemesterTreeNode(
+              facultyId,
+              semesterId,
+              semesterGroups[semesterId]!,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSemesterTreeNode(
+    int facultyId,
+    int semesterId,
+    List<Map<String, dynamic>> items,
+  ) {
+    final semesterLabel =
+        _semesterFromAssignment(items.first);
+
+    final sectionGroups =
+        <int, List<Map<String, dynamic>>>{};
+
+    for (final item in items) {
+      final sectionId = _readInt(item['section_id']);
+      if (sectionId == null) continue;
+      sectionGroups.putIfAbsent(
+        sectionId,
+        () => <Map<String, dynamic>>[],
+      ).add(item);
+    }
+
+    final sectionIds = sectionGroups.keys.toList()
+      ..sort((a, b) {
+        final aName = _value(
+          sectionGroups[a]!.first['section_name'],
+        ).toLowerCase();
+        final bName = _value(
+          sectionGroups[b]!.first['section_name'],
+        ).toLowerCase();
+        return aName.compareTo(bName);
+      });
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSoft,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ExpansionTile(
+        key: PageStorageKey<String>(
+          'faculty-$facultyId-semester-$semesterId',
+        ),
+        leading: const Icon(
+          Icons.calendar_view_month_rounded,
+          color: AppColors.primary,
+        ),
+        title: Text(
+          semesterLabel,
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        subtitle: Text(
+          '${items.length} subject allotment(s)',
+          style: const TextStyle(fontSize: 12),
+        ),
+        children: [
+          for (final sectionId in sectionIds)
+            _buildSectionTreeNode(
+              facultyId,
+              semesterId,
+              sectionId,
+              sectionGroups[sectionId]!,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTreeNode(
+    int facultyId,
+    int semesterId,
+    int sectionId,
+    List<Map<String, dynamic>> items,
+  ) {
+    final sectionName =
+        _value(items.first['section_name']);
+
+    items.sort((a, b) {
+      final aCode =
+          _value(a['subject_code']).toLowerCase();
+      final bCode =
+          _value(b['subject_code']).toLowerCase();
+      return aCode.compareTo(bCode);
+    });
+
+    return Padding(
+      padding: const EdgeInsets.only(
+        left: 12,
+        right: 12,
+        bottom: 8,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: AppColors.border,
+          ),
+        ),
+        child: ExpansionTile(
+          key: PageStorageKey<String>(
+            'faculty-$facultyId-semester-$semesterId-section-$sectionId',
+          ),
+          leading: const Icon(
+            Icons.groups_rounded,
+            color: AppColors.primary,
+          ),
+          title: Text(
+            'Section $sectionName',
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: Text(
+            '${items.length} subject(s)',
+            style: const TextStyle(fontSize: 12),
+          ),
+          childrenPadding: const EdgeInsets.fromLTRB(
+            12,
+            0,
+            12,
+            12,
+          ),
           children: [
-            Row(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  backgroundColor:
-                      AppColors
-                          .surfaceSoft,
-                  child: const Icon(
-                    Icons
-                        .co_present_rounded,
-                    color:
-                        AppColors.primary,
-                  ),
-                ),
-                const SizedBox(
-                  width: 12,
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
-                    children: [
-                      Text(
-                        facultyName,
-                        style:
-                            const TextStyle(
-                          color: AppColors
-                              .textPrimary,
-                          fontSize: 16,
-                          fontWeight:
-                              FontWeight
-                                  .w700,
-                        ),
-                      ),
-                      const SizedBox(
-                        height: 3,
-                      ),
-                      Text(
-                        'Employee ID: $employeeId',
-                        style:
-                            const TextStyle(
-                          color: AppColors
-                              .textSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _statusChip(active),
-              ],
-            ),
-            const SizedBox(
-              height: 14,
-            ),
-            Container(
-              padding:
-                  const EdgeInsets.all(
-                12,
-              ),
-              decoration:
-                  BoxDecoration(
-                color: AppColors
-                    .surfaceSoft,
-                borderRadius:
-                    BorderRadius
-                        .circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment
-                        .start,
-                children: [
-                  Text(
-                    '$subjectCode - $subjectName',
-                    style:
-                        const TextStyle(
-                      color: AppColors
-                          .textPrimary,
-                      fontWeight:
-                          FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(
-                    height: 6,
-                  ),
-                  Text(
-                    '${_semesterFromAssignment(item)} • Section $sectionName',
-                    style:
-                        const TextStyle(
-                      color: AppColors
-                          .textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (active) ...[
-              const SizedBox(
-                height: 12,
-              ),
-              Align(
-                alignment:
-                    Alignment.centerRight,
-                child:
-                    OutlinedButton.icon(
-                  onPressed: _isSaving
-                      ? null
-                      : () =>
-                          _deactivate(
-                            item,
-                          ),
-                  icon: const Icon(
-                    Icons
-                        .remove_circle_outline_rounded,
-                  ),
-                  label: const Text(
-                    'Deactivate',
-                  ),
-                ),
-              ),
-            ],
+            for (final item in items)
+              _buildAssignmentLeaf(item),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildAssignmentLeaf(
+    Map<String, dynamic> item,
+  ) {
+    final active = _readBool(item['is_active']);
+    final subjectCode = _value(item['subject_code']);
+    final subjectName = _value(item['subject_name']);
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 620;
+
+          final details = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$subjectCode — $subjectName',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              _statusChip(active),
+            ],
+          );
+
+          final actions = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (active)
+                OutlinedButton.icon(
+                  style: SemanticActionStyles.outlined(
+                    SemanticActionStyles.caution,
+                  ),
+                  onPressed: _isSaving
+                      ? null
+                      : () => _deactivate(item),
+                  icon: const Icon(
+                    Icons.pause_circle_outline_rounded,
+                  ),
+                  label: const Text('Deactivate'),
+                )
+              else
+                OutlinedButton.icon(
+                  style: SemanticActionStyles.outlined(
+                    SemanticActionStyles.positive,
+                  ),
+                  onPressed: _isSaving
+                      ? null
+                      : () => _activate(item),
+                  icon: const Icon(
+                    Icons.play_circle_outline_rounded,
+                  ),
+                  label: const Text('Activate'),
+                ),
+              OutlinedButton.icon(
+                style: SemanticActionStyles.outlined(
+                  SemanticActionStyles.destructive,
+                ),
+                onPressed: _isSaving
+                    ? null
+                    : () => _deleteAssignment(item),
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                ),
+                label: const Text('Delete'),
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                details,
+                const SizedBox(height: 10),
+                actions,
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: details),
+              const SizedBox(width: 12),
+              actions,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Widget _statusChip(bool active) {
     final color = active
-        ? AppColors.success
-        : AppColors.textSecondary;
+        ? SemanticActionStyles.positive
+        : SemanticActionStyles.caution;
 
     return Container(
       padding:
@@ -1291,6 +2329,55 @@ class _AdminFacultyAssignmentsScreenState
     );
   }
 
+
+  Widget _subjectMultiSelectField() {
+    final enabled =
+        _selectedSemesterId != null &&
+            _selectedSectionId != null &&
+            !_isSaving;
+
+    final selectedCount =
+        _selectedSubjectIds.length;
+
+    return InkWell(
+      onTap:
+          enabled
+              ? _openSubjectMultiSelect
+              : null,
+      borderRadius:
+          BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration:
+            InputDecoration(
+          labelText: 'Subjects',
+          enabled: enabled,
+          prefixIcon: const Icon(
+            Icons.menu_book_rounded,
+          ),
+          suffixIcon: const Icon(
+            Icons.open_in_new_rounded,
+          ),
+        ),
+        child: Text(
+          selectedCount == 0
+              ? 'Select subjects'
+              : selectedCount == 1
+                  ? '1 subject selected'
+                  : '$selectedCount subjects selected',
+          style: TextStyle(
+            color: enabled
+                ? AppColors.textPrimary
+                : AppColors.textSecondary,
+            fontWeight:
+                selectedCount > 0
+                    ? FontWeight.w600
+                    : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _dropdown({
     required String label,
     required int? value,
@@ -1404,22 +2491,9 @@ class _AdminFacultyAssignmentsScreenState
         _value(
       item['semester_number'],
     );
-    final name =
-        _value(
-      item['semester_name'],
-    );
-
-    if (number != '-' &&
-        name != '-') {
-      return 'Semester $number - $name';
-    }
 
     if (number != '-') {
       return 'Semester $number';
-    }
-
-    if (name != '-') {
-      return name;
     }
 
     return 'Semester $id';
@@ -1481,11 +2555,6 @@ class _AdminFacultyAssignmentsScreenState
         _value(
       item['semester_name'],
     );
-
-    if (number != '-' &&
-        name != '-') {
-      return 'Semester $number - $name';
-    }
 
     if (number != '-') {
       return 'Semester $number';

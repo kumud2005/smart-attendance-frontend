@@ -4,6 +4,7 @@ import '../../core/storage/token_storage.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/auth_service.dart';
 
+import 'forgot_password_screen.dart';
 import 'registration_screen.dart';
 
 import '../admin/admin_dashboard_screen.dart';
@@ -147,8 +148,9 @@ class _LoginScreenState
       // SAVE ACCESS TOKEN
       // ----------------------------------------------------------
 
-      await TokenStorage.saveAccessToken(
-        accessToken,
+      await TokenStorage.saveSession(
+        token: accessToken,
+        role: roleName,
       );
 
       if (!mounted) {
@@ -1226,8 +1228,35 @@ class _LoginScreenState
                   },
                 ),
 
+                const SizedBox(
+                  height: 8,
+                ),
+
+                Align(
+                  alignment:
+                      Alignment.centerRight,
+                  child: TextButton(
+                    onPressed:
+                        _isLoading
+                            ? null
+                            : () async {
+                                await Navigator.of(
+                                  context,
+                                ).push(
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const ForgotPasswordScreen(),
+                                  ),
+                                );
+                              },
+                    child: const Text(
+                      'Forgot password?',
+                    ),
+                  ),
+                ),
+
                 SizedBox(
-                  height: compact ? 22 : 28,
+                  height: compact ? 12 : 16,
                 ),
 
                 // ------------------------------------------------

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/semantic_action_styles.dart';
 
 import '../../models/admin_user.dart';
 import '../../services/admin_service.dart';
@@ -580,6 +581,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton(
+              style: SemanticActionStyles.filled(
+                SemanticActionStyles.destructive,
+              ),
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
               },
@@ -897,6 +901,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton(
+              style: SemanticActionStyles.filled(
+                status == 'ACTIVE'
+                    ? SemanticActionStyles.positive
+                    : status == 'INACTIVE' ||
+                            status == 'SUSPENDED'
+                        ? SemanticActionStyles.caution
+                        : SemanticActionStyles.primary,
+              ),
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
               },
@@ -1351,19 +1363,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
     switch (status) {
       case 'ACTIVE':
-        color = AppColors.success;
+        color = SemanticActionStyles.positive;
         break;
 
       case 'PENDING':
-        color = AppColors.warning;
+        color = SemanticActionStyles.caution;
         break;
 
       case 'SUSPENDED':
-        color = AppColors.error;
-        break;
-
       case 'INACTIVE':
-        color = AppColors.textSecondary;
+        color = SemanticActionStyles.caution;
         break;
 
       default:
@@ -1511,10 +1520,15 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               value: 'ACTIVE',
               child: ListTile(
                 leading: Icon(
-                  Icons
-                      .check_circle_rounded,
+                  Icons.check_circle_rounded,
+                  color: SemanticActionStyles.positive,
                 ),
-                title: Text('Activate'),
+                title: Text(
+                  'Activate',
+                  style: TextStyle(
+                    color: SemanticActionStyles.positive,
+                  ),
+                ),
                 contentPadding:
                     EdgeInsets.zero,
               ),
@@ -1526,8 +1540,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               child: ListTile(
                 leading: Icon(
                   Icons.block_rounded,
+                  color: SemanticActionStyles.caution,
                 ),
-                title: Text('Suspend'),
+                title: Text(
+                  'Suspend',
+                  style: TextStyle(
+                    color: SemanticActionStyles.caution,
+                  ),
+                ),
                 contentPadding:
                     EdgeInsets.zero,
               ),
@@ -1538,11 +1558,15 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               value: 'INACTIVE',
               child: ListTile(
                 leading: Icon(
-                  Icons
-                      .pause_circle_rounded,
+                  Icons.pause_circle_rounded,
+                  color: SemanticActionStyles.caution,
                 ),
-                title:
-                    Text('Deactivate'),
+                title: Text(
+                  'Deactivate',
+                  style: TextStyle(
+                    color: SemanticActionStyles.caution,
+                  ),
+                ),
                 contentPadding:
                     EdgeInsets.zero,
               ),

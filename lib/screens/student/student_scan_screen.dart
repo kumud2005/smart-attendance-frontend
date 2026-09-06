@@ -4,7 +4,9 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/theme/app_theme.dart';
 
 import '../../services/student_service.dart';
+import 'student_face_screen.dart';
 import 'student_geofence_screen.dart';
+import 'student_liveness_screen.dart';
 
 class StudentScanScreen extends StatefulWidget {
   const StudentScanScreen({
@@ -118,6 +120,33 @@ class _StudentScanScreenState
                 StudentGeofenceScreen(
               attendanceId: attendanceId,
               attendanceData: attendance,
+            ),
+          ),
+        );
+
+        return;
+      }
+
+      if (nextStep == 'FACE') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) =>
+                StudentFaceScreen(
+              attendanceId: attendanceId,
+              attendanceData: attendance,
+            ),
+          ),
+        );
+
+        return;
+      }
+
+      if (nextStep == 'LIVENESS') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) =>
+                StudentLivenessScreen(
+              attendanceId: attendanceId,
             ),
           ),
         );

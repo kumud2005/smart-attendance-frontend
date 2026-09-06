@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:public_file_saver/public_file_saver.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/semantic_action_styles.dart';
 
 import '../../models/admin_attendance_report.dart';
 import '../../services/admin_attendance_report_service.dart';
@@ -1958,26 +1959,32 @@ class _AdminAttendanceReportScreenState
       case 'PRESENT':
       case 'ACTIVE':
       case 'COMPLETED':
+      case 'APPROVED':
+      case 'VERIFIED':
         background =
-            AppColors.success.withValues(alpha: 0.08);
+            SemanticActionStyles.positive.withValues(alpha: 0.08);
         foreground =
-            AppColors.success;
+            SemanticActionStyles.positive;
         break;
 
       case 'PENDING':
       case 'RUNNING':
+      case 'INACTIVE':
+      case 'SUSPENDED':
         background =
-            AppColors.warning.withValues(alpha: 0.10);
+            SemanticActionStyles.caution.withValues(alpha: 0.10);
         foreground =
-            AppColors.warning;
+            SemanticActionStyles.caution;
         break;
 
       case 'REJECTED':
       case 'CANCELLED':
+      case 'FAILED':
+      case 'ERROR':
         background =
-            AppColors.error.withValues(alpha: 0.08);
+            SemanticActionStyles.destructive.withValues(alpha: 0.08);
         foreground =
-            AppColors.error;
+            SemanticActionStyles.destructive;
         break;
 
       default:

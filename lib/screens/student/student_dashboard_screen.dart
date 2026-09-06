@@ -5,6 +5,9 @@ import '../../core/theme/app_theme.dart';
 import '../../services/student_service.dart';
 import '../auth/login_screen.dart';
 import 'student_face_profile_screen.dart';
+import 'student_face_screen.dart';
+import 'student_geofence_screen.dart';
+import 'student_liveness_screen.dart';
 import 'student_scan_screen.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
@@ -28,6 +31,7 @@ class _StudentDashboardScreenState
 
   Map<String, dynamic>? _dashboardData;
   Map<String, dynamic>? _faceStatus;
+  Map<String, dynamic>? _activeAttendanceAttempt;
 
   // ============================================================
   // INIT
@@ -66,6 +70,33 @@ class _StudentDashboardScreenState
       final faceStatus =
           await _studentService.getFaceStatus();
 
+      Map<String, dynamic>? activeAttempt;
+
+      try {
+        final activeResponse =
+            await _studentService
+                .getActiveAttendanceAttempt();
+
+        if (activeResponse[
+                'has_active_attempt'] ==
+            true) {
+          final rawAttempt =
+              activeResponse['attempt'];
+
+          if (rawAttempt
+              is Map<String, dynamic>) {
+            activeAttempt = rawAttempt;
+          } else if (rawAttempt is Map) {
+            activeAttempt =
+                Map<String, dynamic>.from(
+              rawAttempt,
+            );
+          }
+        }
+      } catch (_) {
+        // Keep dashboard usable if resume lookup temporarily fails.
+      }
+
       if (!mounted) {
         return;
       }
@@ -73,6 +104,8 @@ class _StudentDashboardScreenState
       setState(() {
         _dashboardData = dashboard;
         _faceStatus = faceStatus;
+        _activeAttendanceAttempt =
+            activeAttempt;
         _isLoading = false;
       });
     } catch (error) {
@@ -117,10 +150,94 @@ class _StudentDashboardScreenState
   // ============================================================
 
   Future<void> _openScanner() async {
+    Map<String, dynamic>? activeAttempt;
+
+    try {
+      final activeResponse =
+          await _studentService
+              .getActiveAttendanceAttempt();
+
+      if (activeResponse[
+              'has_active_attempt'] ==
+          true) {
+        final rawAttempt =
+            activeResponse['attempt'];
+
+        if (rawAttempt
+            is Map<String, dynamic>) {
+          activeAttempt = rawAttempt;
+        } else if (rawAttempt is Map) {
+          activeAttempt =
+              Map<String, dynamic>.from(
+            rawAttempt,
+          );
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _activeAttendanceAttempt =
+              activeAttempt;
+        });
+      }
+    } catch (_) {
+      // Scanner remains a safe fallback because rescanning the same
+      // QR returns the existing PENDING attendance_id.
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    Widget destination =
+        const StudentScanScreen();
+
+    if (activeAttempt != null) {
+      final attendanceId =
+          _toIntValue(
+        activeAttempt['attendance_id'],
+      );
+
+      final nextStep =
+          activeAttempt[
+                  'next_verification_step']
+              ?.toString()
+              .trim()
+              .toUpperCase();
+
+      if (attendanceId > 0) {
+        switch (nextStep) {
+          case 'GEOFENCE':
+            destination =
+                StudentGeofenceScreen(
+              attendanceId: attendanceId,
+              attendanceData:
+                  activeAttempt,
+            );
+            break;
+
+          case 'FACE':
+            destination =
+                StudentFaceScreen(
+              attendanceId: attendanceId,
+              attendanceData:
+                  activeAttempt,
+            );
+            break;
+
+          case 'LIVENESS':
+            destination =
+                StudentLivenessScreen(
+              attendanceId: attendanceId,
+            );
+            break;
+        }
+      }
+    }
+
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            const StudentScanScreen(),
+        builder: (_) => destination,
       ),
     );
 
@@ -128,9 +245,22 @@ class _StudentDashboardScreenState
       return;
     }
 
-    // Refresh attendance statistics when the
-    // student returns from the attendance flow.
     await _loadDashboard();
+  }
+
+  int _toIntValue(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return int.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
   }
 
   // ============================================================
@@ -795,6 +925,19 @@ class _StudentDashboardScreenState
     final faceRegistered =
         _faceRegistered();
 
+    final activeAttempt =
+        _activeAttendanceAttempt;
+
+    final hasActiveAttempt =
+        activeAttempt != null;
+
+    final resumeStep =
+        activeAttempt?[
+                'next_verification_step']
+            ?.toString()
+            .trim()
+            .toUpperCase();
+
     Widget iconBox() {
       return Container(
         width: 66,
@@ -833,7 +976,10 @@ class _StudentDashboardScreenState
             height: 5,
           ),
           Text(
-            'Scan the QR code displayed by your faculty.',
+            hasActiveAttempt
+                ? 'Attendance verification is in progress. '
+                  'Continue from ${resumeStep ?? 'the next step'}.'
+                : 'Scan the QR code displayed by your faculty.',
             style: TextStyle(
               fontSize: 13,
               color:
@@ -914,11 +1060,15 @@ class _StudentDashboardScreenState
                 ),
                 FilledButton.icon(
                   onPressed: _openScanner,
-                  icon: const Icon(
-                    Icons.qr_code_scanner_rounded,
+                  icon: Icon(
+                    hasActiveAttempt
+                        ? Icons.play_circle_outline_rounded
+                        : Icons.qr_code_scanner_rounded,
                   ),
-                  label: const Text(
-                    'Scan QR',
+                  label: Text(
+                    hasActiveAttempt
+                        ? 'Resume Attendance'
+                        : 'Scan QR',
                   ),
                 ),
               ],
@@ -939,11 +1089,15 @@ class _StudentDashboardScreenState
               ),
               FilledButton.icon(
                 onPressed: _openScanner,
-                icon: const Icon(
-                  Icons.qr_code_scanner_rounded,
+                icon: Icon(
+                  hasActiveAttempt
+                      ? Icons.play_circle_outline_rounded
+                      : Icons.qr_code_scanner_rounded,
                 ),
-                label: const Text(
-                  'Scan QR',
+                label: Text(
+                  hasActiveAttempt
+                      ? 'Resume Attendance'
+                      : 'Scan QR',
                 ),
               ),
             ],

@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../models/attendance_session.dart';
@@ -25,6 +27,7 @@ class _FacultyAttendanceScreenState
   bool _startingSession = false;
   bool _completingSession = false;
   bool _cancellingSession = false;
+  bool _sharingQr = false;
 
   String? _errorMessage;
 
@@ -458,6 +461,128 @@ class _FacultyAttendanceScreenState
       const Duration(seconds: 1),
       (_) => updateCountdown(),
     );
+  }
+
+  Future<void> _shareCurrentQr(
+    BuildContext shareContext,
+  ) async {
+    final session = _session;
+    final qr = _qr;
+
+    if (session == null || qr == null) {
+      _showMessage(
+        'No active QR is available to share.',
+      );
+      return;
+    }
+
+    if (_sharingQr) {
+      return;
+    }
+
+    final remaining =
+        _remainingNotifier.value;
+
+    if (remaining <= Duration.zero) {
+      _showMessage(
+        'This QR has expired and can no longer be shared.',
+      );
+      return;
+    }
+
+    late final Uint8List qrBytes;
+
+    try {
+      qrBytes =
+          base64Decode(qr.qrCodeBase64);
+    } catch (_) {
+      _showMessage(
+        'Unable to prepare the QR image for sharing.',
+      );
+      return;
+    }
+
+    final renderBox =
+        shareContext.findRenderObject()
+            as RenderBox?;
+
+    final shareOrigin =
+        renderBox == null
+            ? null
+            : renderBox.localToGlobal(
+                    Offset.zero,
+                  ) &
+                renderBox.size;
+
+    final expiresAt =
+        qr.qrExpiresAt
+            .toLocal()
+            .toString()
+            .split('.')
+            .first;
+
+    final shareText =
+        'Smart Anti-Proxy Attendance\\n\\n'
+        '${qr.subjectName}\\n'
+        'Section ${qr.sectionName}\\n'
+        'Session ID: ${session.sessionId}\\n'
+        'QR valid until: $expiresAt\\n\\n'
+        'Scan this QR to begin attendance verification.\\n'
+        'QR scanning alone does not mark attendance. '
+        'Geofence, face verification and liveness verification '
+        'are still required.';
+
+    if (mounted) {
+      setState(() {
+        _sharingQr = true;
+      });
+    }
+
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          title: 'Attendance QR',
+          subject:
+              'Attendance QR - ${qr.subjectName}',
+          text: shareText,
+          files: [
+            XFile.fromData(
+              qrBytes,
+              mimeType: 'image/png',
+            ),
+          ],
+          fileNameOverrides: [
+            'attendance_qr_session_${session.sessionId}.png',
+          ],
+          sharePositionOrigin:
+              shareOrigin,
+          downloadFallbackEnabled: true,
+        ),
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        'QR share action completed.',
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        'Unable to share QR: '
+        '${_cleanErrorMessage(error)}',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sharingQr = false;
+        });
+      }
+    }
   }
 
   Future<void> _completeSession({
@@ -1174,6 +1299,57 @@ class _FacultyAttendanceScreenState
             const SizedBox(height: 18),
 
             qrWidget,
+
+            const SizedBox(height: 14),
+
+            Builder(
+              builder: (shareContext) {
+                return SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed:
+                        (_sharingQr ||
+                                _completingSession ||
+                                _cancellingSession)
+                            ? null
+                            : () => _shareCurrentQr(
+                                  shareContext,
+                                ),
+                    icon: _sharingQr
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.share_rounded,
+                          ),
+                    label: Text(
+                      _sharingQr
+                          ? 'Preparing QR...'
+                          : 'Share QR',
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 8),
+
+            const Text(
+              'Share the current QR through WhatsApp, Telegram, Email '
+              'or another supported app. The QR keeps its original '
+              'expiry time and does not bypass geofence, face or '
+              'liveness verification.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
 
             const SizedBox(height: 18),
 

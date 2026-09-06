@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/semantic_action_styles.dart';
 import '../../services/admin_service.dart';
 
 class AdminClassroomsScreen extends StatefulWidget {
@@ -164,6 +165,9 @@ class _AdminClassroomsScreenState
                 child: const Text('Cancel'),
               ),
               FilledButton(
+                style: SemanticActionStyles.filled(
+                  SemanticActionStyles.caution,
+                ),
                 onPressed: () {
                   Navigator.of(
                     dialogContext,
@@ -273,9 +277,8 @@ class _AdminClassroomsScreenState
                   dialogContext,
                 ).pop(true);
               },
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: Colors.white,
+              style: SemanticActionStyles.filled(
+                SemanticActionStyles.destructive,
               ),
               icon: const Icon(
                 Icons.delete_forever_rounded,
@@ -746,6 +749,11 @@ class _AdminClassroomsScreenState
                 const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton.tonalIcon(
+                    style: SemanticActionStyles.tonal(
+                      isActive
+                          ? SemanticActionStyles.caution
+                          : SemanticActionStyles.positive,
+                    ),
                     onPressed: busy
                         ? null
                         : () {
@@ -789,12 +797,8 @@ class _AdminClassroomsScreenState
                           classroom,
                         );
                       },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor:
-                      AppColors.error,
-                  side: BorderSide(
-                    color: AppColors.error,
-                  ),
+                style: SemanticActionStyles.outlined(
+                  SemanticActionStyles.destructive,
                 ),
                 icon: const Icon(
                   Icons.delete_outline_rounded,
@@ -947,6 +951,11 @@ class _AdminClassroomsScreenState
               ),
               const SizedBox(width: 4),
               TextButton.icon(
+                style: SemanticActionStyles.text(
+                  isActive
+                      ? SemanticActionStyles.caution
+                      : SemanticActionStyles.positive,
+                ),
                 onPressed: busy
                     ? null
                     : () {
@@ -987,7 +996,7 @@ class _AdminClassroomsScreenState
                           classroom,
                         );
                       },
-                color: AppColors.error,
+                color: SemanticActionStyles.destructive,
                 icon: const Icon(
                   Icons.delete_outline_rounded,
                 ),
@@ -1008,13 +1017,10 @@ class _AdminClassroomsScreenState
         vertical: 5,
       ),
       decoration: BoxDecoration(
-        color: isActive
-            ? Colors.green.withValues(
-                alpha: 0.10,
-              )
-            : Colors.grey.withValues(
-                alpha: 0.15,
-              ),
+        color: (isActive
+                ? SemanticActionStyles.positive
+                : SemanticActionStyles.caution)
+            .withValues(alpha: 0.10),
         borderRadius:
             BorderRadius.circular(999),
       ),
@@ -1022,8 +1028,8 @@ class _AdminClassroomsScreenState
         isActive ? 'ACTIVE' : 'INACTIVE',
         style: TextStyle(
           color: isActive
-              ? Colors.green.shade700
-              : Colors.grey.shade700,
+              ? SemanticActionStyles.positive
+              : SemanticActionStyles.caution,
           fontWeight: FontWeight.w700,
           fontSize: 11,
         ),

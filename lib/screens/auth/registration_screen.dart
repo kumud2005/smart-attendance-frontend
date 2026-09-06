@@ -7,10 +7,12 @@ class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
 
   @override
-  State<RegistrationScreen> createState() => _RegistrationScreenState();
+  State<RegistrationScreen> createState() =>
+      _RegistrationScreenState();
 }
 
-class _RegistrationScreenState extends State<RegistrationScreen> {
+class _RegistrationScreenState
+    extends State<RegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final AuthService _authService = AuthService();
 
@@ -23,41 +25,119 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final _enrollment = TextEditingController();
   final _rollNumber = TextEditingController();
   final _dateOfBirth = TextEditingController();
+  final _abcId = TextEditingController();
 
   final _employeeId = TextEditingController();
-  final _department = TextEditingController();
   final _designation = TextEditingController();
 
   String _roleName = 'STUDENT';
+
   bool _loadingOptions = true;
   bool _submitting = false;
   bool _obscurePassword = true;
+
   String? _optionsError;
   String? _submitError;
 
+  List<Map<String, dynamic>> _programs = [];
+  List<Map<String, dynamic>> _branches = [];
   List<Map<String, dynamic>> _semesters = [];
   List<Map<String, dynamic>> _sections = [];
   List<Map<String, dynamic>> _subjects = [];
 
+  int? _programId;
+  int? _branchId;
   int? _semesterId;
   int? _sectionId;
+
   final Set<int> _selectedSubjectIds = {};
-  final List<Map<String, dynamic>> _facultyAssignments = [];
+  final List<Map<String, dynamic>>
+      _facultyAssignments = [];
 
-  bool get _isStudent => _roleName == 'STUDENT';
+  bool get _isStudent =>
+      _roleName == 'STUDENT';
 
-  List<Map<String, dynamic>> get _filteredSections {
-    if (_semesterId == null) return [];
-    return _sections
-        .where((e) => _asInt(e['semester_id']) == _semesterId)
+  List<Map<String, dynamic>>
+      get _filteredBranches {
+    if (_programId == null) return [];
+
+    return _branches
+        .where(
+          (e) =>
+              _asInt(e['program_id']) ==
+              _programId,
+        )
         .toList();
   }
 
-  List<Map<String, dynamic>> get _filteredSubjects {
+  List<Map<String, dynamic>>
+      get _availableSemesters {
+    if (_branchId == null) {
+      return [];
+    }
+
+    final branch = _branches.firstWhere(
+      (item) =>
+          _asInt(item['branch_id']) ==
+          _branchId,
+      orElse: () => <String, dynamic>{},
+    );
+
+    final totalSemesters =
+        _asInt(branch['total_semesters']) ?? 8;
+
+    return _semesters.where((item) {
+      final number =
+          _asInt(item['semester_number']);
+      return number != null &&
+          number >= 1 &&
+          number <= totalSemesters;
+    }).toList();
+  }
+
+  List<Map<String, dynamic>>
+      get _filteredSections {
     if (_semesterId == null) return [];
-    return _subjects
-        .where((e) => _asInt(e['semester_id']) == _semesterId)
+
+    return _sections
+        .where(
+          (e) =>
+              _asInt(e['semester_id']) ==
+              _semesterId,
+        )
         .toList();
+  }
+
+  List<Map<String, dynamic>>
+      get _filteredSubjects {
+    if (_programId == null ||
+        _branchId == null ||
+        _semesterId == null) {
+      return [];
+    }
+
+    return _subjects.where((e) {
+      final sameSemester =
+          _asInt(e['semester_id']) ==
+              _semesterId;
+
+      final program =
+          _asInt(e['program_id']);
+      final branch =
+          _asInt(e['branch_id']);
+
+      final sameProgram =
+          program == null ||
+              program == _programId;
+
+      final sameBranch =
+          branch == null ||
+              branch == _branchId;
+
+      return sameSemester &&
+          sameProgram &&
+          sameBranch;
+    }).toList();
   }
 
   @override
@@ -77,15 +157,20 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       _enrollment,
       _rollNumber,
       _dateOfBirth,
+      _abcId,
       _employeeId,
-      _department,
       _designation,
     ]) {
       controller.dispose();
     }
+
     _authService.dispose();
     super.dispose();
   }
+
+  // ============================================================
+  // LOAD REGISTRATION OPTIONS
+  // ============================================================
 
   Future<void> _loadOptions() async {
     setState(() {
@@ -94,16 +179,29 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     });
 
     try {
-      final response = await _authService.getRegistrationOptions();
+      final response =
+          await _authService
+              .getRegistrationOptions();
+
       if (!mounted) return;
+
       setState(() {
-        _semesters = _mapList(response['semesters']);
-        _sections = _mapList(response['sections']);
-        _subjects = _mapList(response['subjects']);
+        _programs =
+            _mapList(response['programs']);
+        _branches =
+            _mapList(response['branches']);
+        _semesters =
+            _mapList(response['semesters']);
+        _sections =
+            _mapList(response['sections']);
+        _subjects =
+            _mapList(response['subjects']);
+
         _loadingOptions = false;
       });
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         _loadingOptions = false;
         _optionsError = _cleanError(e);
@@ -111,13 +209,20 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     }
   }
 
-  List<Map<String, dynamic>> _mapList(dynamic value) {
+  List<Map<String, dynamic>> _mapList(
+    dynamic value,
+  ) {
     if (value is! List) return [];
+
     return value
         .whereType<Map>()
         .map(
           (e) => e.map(
-            (key, value) => MapEntry(key.toString(), value),
+            (key, value) =>
+                MapEntry(
+              key.toString(),
+              value,
+            ),
           ),
         )
         .toList();
@@ -125,16 +230,53 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   int? _asInt(dynamic value) {
     if (value is int) return value;
-    return int.tryParse(value?.toString() ?? '');
+
+    return int.tryParse(
+      value?.toString() ?? '',
+    );
   }
+
+  // ============================================================
+  // ACADEMIC SELECTION
+  // ============================================================
 
   void _changeRole(String role) {
     if (_submitting) return;
+
     setState(() {
       _roleName = role;
+
+      _programId = null;
+      _branchId = null;
+      _semesterId = null;
+      _sectionId = null;
+
+      _selectedSubjectIds.clear();
+      _facultyAssignments.clear();
+
+      _submitError = null;
+    });
+  }
+
+  void _changeProgram(int? value) {
+    setState(() {
+      _programId = value;
+      _branchId = null;
       _semesterId = null;
       _sectionId = null;
       _selectedSubjectIds.clear();
+      _facultyAssignments.clear();
+      _submitError = null;
+    });
+  }
+
+  void _changeBranch(int? value) {
+    setState(() {
+      _branchId = value;
+      _semesterId = null;
+      _sectionId = null;
+      _selectedSubjectIds.clear();
+      _facultyAssignments.clear();
       _submitError = null;
     });
   }
@@ -156,51 +298,119 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     });
   }
 
+  // ============================================================
+  // DATE OF BIRTH
+  // ============================================================
+
   Future<void> _pickDateOfBirth() async {
     final now = DateTime.now();
-    final selected = await showDatePicker(
+
+    final selected =
+        await showDatePicker(
       context: context,
-      initialDate: DateTime(now.year - 18, now.month, now.day),
+      initialDate: DateTime(
+        now.year - 18,
+        now.month,
+        now.day,
+      ),
       firstDate: DateTime(1950),
       lastDate: now,
       helpText: 'Select date of birth',
     );
-    if (selected == null || !mounted) return;
 
-    final y = selected.year.toString().padLeft(4, '0');
-    final m = selected.month.toString().padLeft(2, '0');
-    final d = selected.day.toString().padLeft(2, '0');
-    setState(() => _dateOfBirth.text = '$y-$m-$d');
+    if (selected == null || !mounted) {
+      return;
+    }
+
+    final y =
+        selected.year.toString().padLeft(
+              4,
+              '0',
+            );
+
+    final m =
+        selected.month.toString().padLeft(
+              2,
+              '0',
+            );
+
+    final d =
+        selected.day.toString().padLeft(
+              2,
+              '0',
+            );
+
+    setState(
+      () => _dateOfBirth.text =
+          '$y-$m-$d',
+    );
   }
 
+  // ============================================================
+  // FACULTY ASSIGNMENTS
+  // ============================================================
+
   void _addFacultyAssignments() {
+    if (_programId == null) {
+      _snack(
+        'Please select a program.',
+      );
+      return;
+    }
+
+    if (_branchId == null) {
+      _snack(
+        'Please select a department/branch.',
+      );
+      return;
+    }
+
     if (_semesterId == null) {
-      _snack('Please select a semester.');
+      _snack(
+        'Please select a semester.',
+      );
       return;
     }
+
     if (_sectionId == null) {
-      _snack('Please select a section.');
+      _snack(
+        'Please select a section.',
+      );
       return;
     }
+
     if (_selectedSubjectIds.isEmpty) {
-      _snack('Please select at least one subject.');
+      _snack(
+        'Please select at least one subject.',
+      );
       return;
     }
 
     var added = 0;
-    for (final subjectId in _selectedSubjectIds) {
-      final exists = _facultyAssignments.any(
+
+    for (final subjectId
+        in _selectedSubjectIds) {
+      final exists =
+          _facultyAssignments.any(
         (a) =>
-            a['semester_id'] == _semesterId &&
-            a['section_id'] == _sectionId &&
-            a['subject_id'] == subjectId,
+            a['semester_id'] ==
+                _semesterId &&
+            a['section_id'] ==
+                _sectionId &&
+            a['subject_id'] ==
+                subjectId,
       );
+
       if (!exists) {
         _facultyAssignments.add({
-          'semester_id': _semesterId!,
-          'section_id': _sectionId!,
-          'subject_id': subjectId,
+          'semester_id':
+              _semesterId!,
+          'section_id':
+              _sectionId!,
+          'subject_id':
+              subjectId,
         });
+
         added++;
       }
     }
@@ -217,26 +427,55 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     );
   }
 
+  // ============================================================
+  // REGISTER
+  // ============================================================
+
   Future<void> _register() async {
     FocusScope.of(context).unfocus();
 
-    // Keep registration data consistent before validation/submission.
-    _fullName.text = _toTitleCase(_fullName.text);
-    _email.text = _email.text.trim().toLowerCase();
+    if (!_formKey.currentState!
+        .validate()) {
+      return;
+    }
 
-    if (!_formKey.currentState!.validate()) return;
+    if (_programId == null) {
+      setState(
+        () => _submitError =
+            'Please select a program.',
+      );
+      return;
+    }
+
+    if (_branchId == null) {
+      setState(
+        () => _submitError =
+            'Please select a department/branch.',
+      );
+      return;
+    }
 
     if (_semesterId == null) {
-      setState(() => _submitError = 'Please select a semester.');
+      setState(
+        () => _submitError =
+            'Please select a semester.',
+      );
       return;
     }
+
     if (_sectionId == null) {
-      setState(() => _submitError = 'Please select a section.');
+      setState(
+        () => _submitError =
+            'Please select a section.',
+      );
       return;
     }
-    if (!_isStudent && _facultyAssignments.isEmpty) {
+
+    if (!_isStudent &&
+        _facultyAssignments.isEmpty) {
       setState(() {
-        _submitError = 'Please add at least one faculty assignment.';
+        _submitError =
+            'Please add at least one faculty assignment.';
       });
       return;
     }
@@ -247,77 +486,135 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     });
 
     try {
-      late final Map<String, dynamic> response;
+      late final Map<String, dynamic>
+          response;
 
       if (_isStudent) {
-        response = await _authService.registerStudent(
+        response =
+            await _authService
+                .registerStudent(
           email: _email.text,
           password: _password.text,
           fullName: _fullName.text,
           phone: _phone.text,
-          enrollmentNumber: _enrollment.text,
-          rollNumber: _rollNumber.text,
-          dateOfBirth: _dateOfBirth.text,
-          studentSectionId: _sectionId!,
+          programId: _programId!,
+          branchId: _branchId!,
+          enrollmentNumber:
+              _enrollment.text,
+          rollNumber:
+              _rollNumber.text,
+          dateOfBirth:
+              _dateOfBirth.text,
+          abcId:
+              _abcId.text,
+          studentSectionId:
+              _sectionId!,
         );
       } else {
-        response = await _authService.registerFaculty(
+        response =
+            await _authService
+                .registerFaculty(
           email: _email.text,
           password: _password.text,
           fullName: _fullName.text,
           phone: _phone.text,
-          employeeId: _employeeId.text,
-          department: _department.text,
-          designation: _designation.text,
-          facultyAssignments: _facultyAssignments
-              .map((e) => Map<String, dynamic>.from(e))
-              .toList(),
+          programId: _programId!,
+          branchId: _branchId!,
+          employeeId:
+              _employeeId.text,
+          designation:
+              _designation.text,
+          facultyAssignments:
+              _facultyAssignments
+                  .map(
+                    (e) => Map<
+                        String,
+                        dynamic>.from(e),
+                  )
+                  .toList(),
         );
       }
 
       if (!mounted) return;
-      final message = response['message']?.toString().trim();
+
+      final message =
+          response['message']
+              ?.toString()
+              .trim();
 
       await showDialog<void>(
         context: context,
         barrierDismissible: false,
-        builder: (dialogContext) => AlertDialog(
+        builder: (
+          dialogContext,
+        ) =>
+            AlertDialog(
           icon: const Icon(
-            Icons.check_circle_outline_rounded,
-            color: AppColors.primary,
+            Icons
+                .check_circle_outline_rounded,
+            color:
+                AppColors.primary,
             size: 42,
           ),
-          title: const Text('Registration Submitted'),
+          title: const Text(
+            'Registration Submitted',
+          ),
           content: Text(
             '${(message == null || message.isEmpty) ? 'Registration successful. Your account is pending administrator approval.' : message}\n\n'
             'You can sign in after an administrator approves your account.',
           ),
           actions: [
             FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Back to Sign In'),
+              onPressed: () =>
+                  Navigator.of(
+                dialogContext,
+              ).pop(),
+              child: const Text(
+                'Back to Sign In',
+              ),
             ),
           ],
         ),
       );
 
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _submitError = _cleanError(e));
+
+      setState(
+        () => _submitError =
+            _cleanError(e),
+      );
     } finally {
-      if (mounted) setState(() => _submitting = false);
+      if (mounted) {
+        setState(
+          () => _submitting = false,
+        );
+      }
     }
   }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Create Account')),
+      backgroundColor:
+          AppColors.background,
+      appBar: AppBar(
+        title:
+            const Text('Create Account'),
+      ),
       body: SafeArea(
         child: _loadingOptions
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(
+                child:
+                    CircularProgressIndicator(),
+              )
             : _optionsError != null
                 ? _buildOptionsError()
                 : _buildForm(),
@@ -328,38 +625,73 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   Widget _buildOptionsError() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding:
+            const EdgeInsets.all(24),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
+          constraints:
+              const BoxConstraints(
+            maxWidth: 520,
+          ),
           child: Card(
             elevation: 0,
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding:
+                  const EdgeInsets.all(
+                24,
+              ),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize:
+                    MainAxisSize.min,
                 children: [
-                  const Icon(Icons.cloud_off_rounded, color: AppColors.error, size: 42),
-                  const SizedBox(height: 12),
+                  const Icon(
+                    Icons
+                        .cloud_off_rounded,
+                    color:
+                        AppColors.error,
+                    size: 42,
+                  ),
+                  const SizedBox(
+                    height: 12,
+                  ),
                   const Text(
                     'Unable to load registration options',
-                    textAlign: TextAlign.center,
+                    textAlign:
+                        TextAlign.center,
                     style: TextStyle(
-                      color: AppColors.textPrimary,
+                      color: AppColors
+                          .textPrimary,
                       fontSize: 18,
-                      fontWeight: FontWeight.w700,
+                      fontWeight:
+                          FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(
+                    height: 8,
+                  ),
                   Text(
                     _optionsError!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppColors.textSecondary),
+                    textAlign:
+                        TextAlign.center,
+                    style:
+                        const TextStyle(
+                      color: AppColors
+                          .textSecondary,
+                    ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(
+                    height: 18,
+                  ),
                   FilledButton.icon(
-                    onPressed: _loadOptions,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Try Again'),
+                    onPressed:
+                        _loadOptions,
+                    icon: const Icon(
+                      Icons
+                          .refresh_rounded,
+                    ),
+                    label:
+                        const Text(
+                      'Try Again',
+                    ),
                   ),
                 ],
               ),
@@ -372,137 +704,131 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   Widget _buildForm() {
     return SingleChildScrollView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+      keyboardDismissBehavior:
+          ScrollViewKeyboardDismissBehavior
+              .onDrag,
+      padding:
+          const EdgeInsets.fromLTRB(
+        16,
+        20,
+        16,
+        32,
+      ),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
+          constraints:
+              const BoxConstraints(
+            maxWidth: 760,
+          ),
           child: Form(
             key: _formKey,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment:
+                  CrossAxisAlignment
+                      .stretch,
               children: [
                 _buildHeader(),
-                const SizedBox(height: 18),
-                _buildRoleSelector(),
-                const SizedBox(height: 16),
-                _sectionCard(
-                  title: 'Account Details',
-                  icon: Icons.person_outline_rounded,
-                  children: [
-                    _field(_fullName, 'Full name', Icons.badge_outlined,
-                        validator: _required('Please enter your full name.')),
-                    _gap(),
-                    _field(
-                      _email,
-                      'Email address',
-                      Icons.email_outlined,
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (v) {
-                        final email = (v ?? '').trim();
-                        if (email.isEmpty) return 'Please enter your email.';
-                        if (!email.contains('@')) return 'Please enter a valid email.';
-                        return null;
-                      },
-                    ),
-                    _gap(),
-                    _field(
-                      _phone,
-                      'Phone number (optional)',
-                      Icons.phone_outlined,
-                      keyboardType: TextInputType.phone,
-                    ),
-                    _gap(),
-                    _field(
-                      _password,
-                      'Password',
-                      Icons.lock_outline_rounded,
-                      obscureText: _obscurePassword,
-                      suffixIcon: IconButton(
-                        onPressed: _submitting
-                            ? null
-                            : () => setState(
-                                  () => _obscurePassword = !_obscurePassword,
-                                ),
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                        ),
-                      ),
-                      validator: _validatePassword,
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.only(left: 12, top: 7),
-                      child: Text(
-                        'Must contain at least 8 characters, including 1 uppercase, '
-                        '1 lowercase, 1 number and 1 special character.',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                          height: 1.35,
-                        ),
-                      ),
-                    ),
-                    _gap(),
-                    _field(
-                      _confirmPassword,
-                      'Confirm password',
-                      Icons.lock_reset_rounded,
-                      obscureText: _obscurePassword,
-                      validator: (v) {
-                        if ((v ?? '').isEmpty) return 'Please confirm your password.';
-                        if (v != _password.text) return 'Passwords do not match.';
-                        return null;
-                      },
-                    ),
-                  ],
+                const SizedBox(
+                  height: 18,
                 ),
-                const SizedBox(height: 16),
-                if (_isStudent) _buildStudentCard() else _buildFacultyCard(),
-                const SizedBox(height: 16),
+                _buildRoleSelector(),
+                const SizedBox(
+                  height: 16,
+                ),
+                _buildAccountCard(),
+                const SizedBox(
+                  height: 16,
+                ),
+                if (_isStudent)
+                  _buildStudentCard()
+                else
+                  _buildFacultyCard(),
+                const SizedBox(
+                  height: 16,
+                ),
                 _buildAcademicCard(),
                 if (!_isStudent) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(
+                    height: 16,
+                  ),
                   _buildRequestedAssignments(),
                 ],
-                if (_submitError != null) ...[
-                  const SizedBox(height: 16),
-                  _errorBox(_submitError!),
+                if (_submitError !=
+                    null) ...[
+                  const SizedBox(
+                    height: 16,
+                  ),
+                  _errorBox(
+                    _submitError!,
+                  ),
                 ],
-                const SizedBox(height: 22),
+                const SizedBox(
+                  height: 22,
+                ),
                 SizedBox(
                   height: 52,
-                  child: FilledButton.icon(
-                    onPressed: _submitting ? null : _register,
+                  child:
+                      FilledButton.icon(
+                    onPressed:
+                        _submitting
+                            ? null
+                            : _register,
                     icon: _submitting
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.4,
-                              color: Colors.white,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth:
+                                  2.4,
+                              color:
+                                  Colors.white,
                             ),
                           )
-                        : const Icon(Icons.person_add_alt_1_rounded),
+                        : const Icon(
+                            Icons
+                                .person_add_alt_1_rounded,
+                          ),
                     label: Text(
-                      _submitting ? 'Submitting...' : 'Submit Registration',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                      _submitting
+                          ? 'Submitting...'
+                          : 'Submit Registration',
+                      style:
+                          const TextStyle(
+                        fontWeight:
+                            FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 10),
-                TextButton.icon(
-                  onPressed: _submitting ? null : () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.login_rounded),
-                  label: const Text('Already have an account? Sign In'),
+                const SizedBox(
+                  height: 10,
                 ),
-                const SizedBox(height: 6),
+                TextButton.icon(
+                  onPressed:
+                      _submitting
+                          ? null
+                          : () =>
+                              Navigator.of(
+                                context,
+                              ).pop(),
+                  icon: const Icon(
+                    Icons.login_rounded,
+                  ),
+                  label: const Text(
+                    'Already have an account? Sign In',
+                  ),
+                ),
+                const SizedBox(
+                  height: 6,
+                ),
                 const Text(
                   'Administrator accounts cannot be created through public registration.',
-                  textAlign: TextAlign.center,
+                  textAlign:
+                      TextAlign.center,
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: AppColors
+                        .textSecondary,
                     fontSize: 12,
                   ),
                 ),
@@ -514,41 +840,70 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     );
   }
 
+  // ============================================================
+  // HEADER / ROLE
+  // ============================================================
+
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding:
+          const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient:
+            const LinearGradient(
           begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primaryDark, AppColors.primary],
+          end:
+              Alignment.bottomRight,
+          colors: [
+            AppColors.primaryDark,
+            AppColors.primary,
+          ],
         ),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius:
+            BorderRadius.circular(18),
       ),
       child: const Row(
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: Colors.white,
-            child: Icon(Icons.school_rounded, color: AppColors.primary, size: 27),
+            backgroundColor:
+                Colors.white,
+            child: Icon(
+              Icons.school_rounded,
+              color:
+                  AppColors.primary,
+              size: 27,
+            ),
           ),
-          SizedBox(width: 14),
+          SizedBox(
+            width: 14,
+          ),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
               children: [
                 Text(
                   'GHRCE Smart Attendance',
                   style: TextStyle(
-                    color: Colors.white,
+                    color:
+                        Colors.white,
                     fontSize: 19,
-                    fontWeight: FontWeight.w800,
+                    fontWeight:
+                        FontWeight.w800,
                   ),
                 ),
-                SizedBox(height: 4),
+                SizedBox(
+                  height: 4,
+                ),
                 Text(
                   'Create a Student or Faculty account',
-                  style: TextStyle(color: Colors.white70, fontSize: 12.5),
+                  style: TextStyle(
+                    color:
+                        Colors.white70,
+                    fontSize: 12.5,
+                  ),
                 ),
               ],
             ),
@@ -562,29 +917,65 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     return Card(
       elevation: 0,
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding:
+            const EdgeInsets.all(18),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
             const Text(
               'Register as',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: AppColors
+                    .textPrimary,
                 fontSize: 16,
-                fontWeight: FontWeight.w700,
+                fontWeight:
+                    FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(
+              height: 12,
+            ),
             SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<String>(
+              width:
+                  double.infinity,
+              child:
+                  SegmentedButton<
+                      String>(
                 segments: const [
-                  ButtonSegment(value: 'STUDENT', icon: Icon(Icons.school_outlined), label: Text('Student')),
-                  ButtonSegment(value: 'FACULTY', icon: Icon(Icons.co_present_outlined), label: Text('Faculty')),
+                  ButtonSegment(
+                    value:
+                        'STUDENT',
+                    icon: Icon(
+                      Icons
+                          .school_outlined,
+                    ),
+                    label:
+                        Text('Student'),
+                  ),
+                  ButtonSegment(
+                    value:
+                        'FACULTY',
+                    icon: Icon(
+                      Icons
+                          .co_present_outlined,
+                    ),
+                    label:
+                        Text('Faculty'),
+                  ),
                 ],
-                selected: {_roleName},
-                showSelectedIcon: false,
-                onSelectionChanged: _submitting ? null : (s) => _changeRole(s.first),
+                selected: {
+                  _roleName,
+                },
+                showSelectedIcon:
+                    false,
+                onSelectionChanged:
+                    _submitting
+                        ? null
+                        : (s) =>
+                            _changeRole(
+                              s.first,
+                            ),
               ),
             ),
           ],
@@ -592,6 +983,157 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       ),
     );
   }
+
+  // ============================================================
+  // ACCOUNT DETAILS
+  // ============================================================
+
+  Widget _buildAccountCard() {
+    return _sectionCard(
+      title: 'Account Details',
+      icon:
+          Icons.person_outline_rounded,
+      children: [
+        _field(
+          _fullName,
+          'Full name',
+          Icons.badge_outlined,
+          validator: _required(
+            'Please enter your full name.',
+          ),
+        ),
+        _gap(),
+        _field(
+          _email,
+          'Email address',
+          Icons.email_outlined,
+          keyboardType:
+              TextInputType
+                  .emailAddress,
+          validator: (v) {
+            final email =
+                (v ?? '').trim();
+
+            if (email.isEmpty) {
+              return 'Please enter your email.';
+            }
+
+            if (!email.contains('@')) {
+              return 'Please enter a valid email.';
+            }
+
+            return null;
+          },
+        ),
+        _gap(),
+        _field(
+          _phone,
+          'Phone number (optional)',
+          Icons.phone_outlined,
+          keyboardType:
+              TextInputType.phone,
+        ),
+        _gap(),
+        _field(
+          _password,
+          'Password',
+          Icons.lock_outline_rounded,
+          obscureText:
+              _obscurePassword,
+          suffixIcon:
+              IconButton(
+            onPressed: _submitting
+                ? null
+                : () => setState(
+                      () =>
+                          _obscurePassword =
+                              !_obscurePassword,
+                    ),
+            icon: Icon(
+              _obscurePassword
+                  ? Icons
+                      .visibility_outlined
+                  : Icons
+                      .visibility_off_outlined,
+            ),
+          ),
+          validator:
+              _validatePassword,
+        ),
+        const SizedBox(
+          height: 6,
+        ),
+        const Text(
+          'Must contain at least 8 characters, including 1 uppercase, '
+          '1 lowercase, 1 number and 1 special character.',
+          style: TextStyle(
+            color:
+                AppColors.textSecondary,
+            fontSize: 11.5,
+            height: 1.35,
+          ),
+        ),
+        _gap(),
+        _field(
+          _confirmPassword,
+          'Confirm password',
+          Icons.lock_reset_rounded,
+          obscureText:
+              _obscurePassword,
+          validator: (v) {
+            if ((v ?? '').isEmpty) {
+              return 'Please confirm your password.';
+            }
+
+            if (v !=
+                _password.text) {
+              return 'Passwords do not match.';
+            }
+
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  String? _validatePassword(
+    String? value,
+  ) {
+    final password =
+        value ?? '';
+
+    if (password.length < 8) {
+      return 'Password must be at least 8 characters.';
+    }
+
+    if (!RegExp(r'[A-Z]')
+        .hasMatch(password)) {
+      return 'Add at least 1 uppercase letter.';
+    }
+
+    if (!RegExp(r'[a-z]')
+        .hasMatch(password)) {
+      return 'Add at least 1 lowercase letter.';
+    }
+
+    if (!RegExp(r'[0-9]')
+        .hasMatch(password)) {
+      return 'Add at least 1 number.';
+    }
+
+    if (!RegExp(
+      r'[^A-Za-z0-9]',
+    ).hasMatch(password)) {
+      return 'Add at least 1 special character.';
+    }
+
+    return null;
+  }
+
+  // ============================================================
+  // STUDENT / FACULTY DETAILS
+  // ============================================================
 
   Widget _buildStudentCard() {
     return _sectionCard(
@@ -602,14 +1144,30 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           _enrollment,
           'Enrollment number',
           Icons.numbers_rounded,
-          validator: _required('Please enter your enrollment number.'),
+          validator: _required(
+            'Please enter your enrollment number.',
+          ),
         ),
         _gap(),
         _field(
           _rollNumber,
           'Roll number',
           Icons.tag_rounded,
-          validator: _required('Please enter your roll number.'),
+          validator: _required(
+            'Please enter your roll number.',
+          ),
+        ),
+        _gap(),
+        _field(
+          _abcId,
+          'ABC ID',
+          Icons
+              .account_balance_wallet_outlined,
+          keyboardType:
+              TextInputType.text,
+          validator: _required(
+            'Please enter your ABC ID.',
+          ),
         ),
         _gap(),
         _field(
@@ -617,9 +1175,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           'Date of birth',
           Icons.cake_outlined,
           readOnly: true,
-          onTap: _pickDateOfBirth,
-          suffixIcon: const Icon(Icons.calendar_month_outlined),
-          validator: _required('Please select your date of birth.'),
+          onTap:
+              _pickDateOfBirth,
+          suffixIcon:
+              const Icon(
+            Icons
+                .calendar_month_outlined,
+          ),
+          validator: _required(
+            'Please select your date of birth.',
+          ),
         ),
       ],
     );
@@ -628,126 +1193,314 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   Widget _buildFacultyCard() {
     return _sectionCard(
       title: 'Faculty Details',
-      icon: Icons.co_present_outlined,
+      icon:
+          Icons.co_present_outlined,
       children: [
         _field(
           _employeeId,
           'Employee ID',
           Icons.badge_outlined,
-          validator: _required('Please enter your employee ID.'),
-        ),
-        _gap(),
-        _field(
-          _department,
-          'Department',
-          Icons.apartment_rounded,
-          validator: _required('Please enter your department.'),
+          validator: _required(
+            'Please enter your employee ID.',
+          ),
         ),
         _gap(),
         _field(
           _designation,
           'Designation',
           Icons.work_outline_rounded,
-          validator: _required('Please enter your designation.'),
+          validator: _required(
+            'Please enter your designation.',
+          ),
+        ),
+        const SizedBox(
+          height: 8,
+        ),
+        const Text(
+          'Department is selected from Academic Details below '
+          'and is stored from the official branch record.',
+          style: TextStyle(
+            color:
+                AppColors.textSecondary,
+            fontSize: 12,
+            height: 1.4,
+          ),
         ),
       ],
     );
   }
 
+  // ============================================================
+  // ACADEMIC DETAILS
+  // ============================================================
+
   Widget _buildAcademicCard() {
     return _sectionCard(
-      title: _isStudent ? 'Academic Details' : 'Request Academic Assignment',
-      icon: Icons.menu_book_rounded,
+      title: _isStudent
+          ? 'Academic Details'
+          : 'Academic Details & Assignment',
+      icon:
+          Icons.menu_book_rounded,
       children: [
         _dropdown(
-          label: 'Semester',
-          icon: Icons.layers_outlined,
-          value: _semesterId,
-          items: _semesters
-              .map((s) => _asInt(s['semester_id']))
+          label: 'Program',
+          icon:
+              Icons.school_rounded,
+          value: _programId,
+          items: _programs
+              .map(
+                (p) => _asInt(
+                  p['program_id'],
+                ),
+              )
               .whereType<int>()
-              .map((id) => DropdownMenuItem(value: id, child: Text(_semesterLabel(id))))
+              .map(
+                (id) =>
+                    DropdownMenuItem(
+                  value: id,
+                  child: Text(
+                    _programLabel(id),
+                  ),
+                ),
+              )
               .toList(),
-          onChanged: _submitting ? null : _changeSemester,
+          onChanged:
+              _submitting
+                  ? null
+                  : _changeProgram,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(
+          height: 16,
+        ),
+        _dropdown(
+          label:
+              'Department / Branch',
+          icon:
+              Icons.apartment_rounded,
+          value: _branchId,
+          items: _filteredBranches
+              .map(
+                (b) => _asInt(
+                  b['branch_id'],
+                ),
+              )
+              .whereType<int>()
+              .map(
+                (id) =>
+                    DropdownMenuItem(
+                  value: id,
+                  child: Text(
+                    _branchLabel(id),
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged:
+              _programId == null ||
+                      _submitting
+                  ? null
+                  : _changeBranch,
+        ),
+        const SizedBox(
+          height: 16,
+        ),
+        _dropdown(
+          label: 'Semester',
+          icon:
+              Icons.layers_outlined,
+          value: _semesterId,
+          items: _availableSemesters
+              .map(
+                (s) => _asInt(
+                  s['semester_id'],
+                ),
+              )
+              .whereType<int>()
+              .map(
+                (id) =>
+                    DropdownMenuItem(
+                  value: id,
+                  child: Text(
+                    _semesterLabel(id),
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged:
+              _branchId == null ||
+                      _submitting
+                  ? null
+                  : _changeSemester,
+        ),
+        const SizedBox(
+          height: 16,
+        ),
         _dropdown(
           label: 'Section',
-          icon: Icons.groups_outlined,
+          icon:
+              Icons.groups_outlined,
           value: _sectionId,
           items: _filteredSections
-              .map((s) => _asInt(s['section_id']))
+              .map(
+                (s) => _asInt(
+                  s['section_id'],
+                ),
+              )
               .whereType<int>()
-              .map((id) => DropdownMenuItem(value: id, child: Text(_sectionLabel(id))))
+              .map(
+                (id) =>
+                    DropdownMenuItem(
+                  value: id,
+                  child: Text(
+                    _sectionLabel(id),
+                  ),
+                ),
+              )
               .toList(),
-          onChanged: _semesterId == null || _submitting ? null : _changeSection,
+          onChanged:
+              _semesterId == null ||
+                      _submitting
+                  ? null
+                  : _changeSection,
         ),
         if (!_isStudent) ...[
-          const SizedBox(height: 18),
+          const SizedBox(
+            height: 18,
+          ),
           const Text(
             'Subjects',
             style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
+              color:
+                  AppColors.textPrimary,
+              fontWeight:
+                  FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 8),
-          if (_semesterId == null)
+          const SizedBox(
+            height: 8,
+          ),
+          if (_branchId == null ||
+              _semesterId == null)
             const Text(
-              'Select a semester to view subjects.',
-              style: TextStyle(color: AppColors.textSecondary),
+              'Select Program, Department/Branch and Semester to view subjects.',
+              style: TextStyle(
+                color: AppColors
+                    .textSecondary,
+              ),
             )
-          else if (_filteredSubjects.isEmpty)
+          else if (_filteredSubjects
+              .isEmpty)
             const Text(
-              'No active subjects are available for the selected semester.',
-              style: TextStyle(color: AppColors.textSecondary),
+              'No active subjects are available for the selected Program, Department/Branch and Semester.',
+              style: TextStyle(
+                color: AppColors
+                    .textSecondary,
+              ),
             )
           else
             Container(
-              decoration: BoxDecoration(
+              decoration:
+                  BoxDecoration(
                 border: Border.all(
-                  color: AppColors.textSecondary.withValues(alpha: 0.18),
+                  color: AppColors
+                      .textSecondary
+                      .withValues(
+                    alpha: 0.18,
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius:
+                    BorderRadius
+                        .circular(12),
               ),
               child: Column(
-                children: _filteredSubjects.map((subject) {
-                  final subjectId = _asInt(subject['subject_id']);
-                  if (subjectId == null) return const SizedBox.shrink();
-                  return CheckboxListTile(
-                    value: _selectedSubjectIds.contains(subjectId),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    dense: true,
-                    title: Text(_subjectLabel(subjectId)),
-                    onChanged: _submitting || _sectionId == null
-                        ? null
-                        : (value) {
-                            setState(() {
-                              if (value ?? false) {
-                                _selectedSubjectIds.add(subjectId);
-                              } else {
-                                _selectedSubjectIds.remove(subjectId);
-                              }
-                            });
-                          },
-                  );
-                }).toList(),
+                children:
+                    _filteredSubjects
+                        .map(
+                  (subject) {
+                    final subjectId =
+                        _asInt(
+                      subject[
+                          'subject_id'],
+                    );
+
+                    if (subjectId ==
+                        null) {
+                      return const SizedBox
+                          .shrink();
+                    }
+
+                    return CheckboxListTile(
+                      value:
+                          _selectedSubjectIds
+                              .contains(
+                        subjectId,
+                      ),
+                      controlAffinity:
+                          ListTileControlAffinity
+                              .leading,
+                      dense: true,
+                      title: Text(
+                        _subjectLabel(
+                          subjectId,
+                        ),
+                      ),
+                      onChanged:
+                          _submitting ||
+                                  _sectionId ==
+                                      null
+                              ? null
+                              : (value) {
+                                  setState(
+                                    () {
+                                      if (value ??
+                                          false) {
+                                        _selectedSubjectIds
+                                            .add(
+                                          subjectId,
+                                        );
+                                      } else {
+                                        _selectedSubjectIds
+                                            .remove(
+                                          subjectId,
+                                        );
+                                      }
+                                    },
+                                  );
+                                },
+                    );
+                  },
+                ).toList(),
               ),
             ),
-          const SizedBox(height: 12),
+          const SizedBox(
+            height: 12,
+          ),
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _submitting ? null : _addFacultyAssignments,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Add Selected Assignment(s)'),
+            child:
+                OutlinedButton.icon(
+              onPressed:
+                  _submitting
+                      ? null
+                      : _addFacultyAssignments,
+              icon: const Icon(
+                Icons.add_rounded,
+              ),
+              label: const Text(
+                'Add Selected Assignment(s)',
+              ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(
+            height: 8,
+          ),
           const Text(
-            'You can add subjects from more than one semester or section. These are requests only; an administrator must approve them.',
+            'You can add subjects from more than one semester or section '
+            'within the selected department. These are requests only; '
+            'an administrator must approve them.',
             style: TextStyle(
-              color: AppColors.textSecondary,
+              color: AppColors
+                  .textSecondary,
               fontSize: 12,
               height: 1.4,
             ),
@@ -757,55 +1510,133 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     );
   }
 
+  // ============================================================
+  // REQUESTED ASSIGNMENTS
+  // ============================================================
+
   Widget _buildRequestedAssignments() {
     return _sectionCard(
       title: 'Requested Assignments',
-      icon: Icons.assignment_outlined,
+      icon:
+          Icons.assignment_outlined,
       children: [
-        if (_facultyAssignments.isEmpty)
+        if (_facultyAssignments
+            .isEmpty)
           const Text(
             'No assignments added yet.',
-            style: TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(
+              color: AppColors
+                  .textSecondary,
+            ),
           )
         else
-          ...List.generate(_facultyAssignments.length, (index) {
-            final a = _facultyAssignments[index];
-            final semesterId = a['semester_id'] as int;
-            final sectionId = a['section_id'] as int;
-            final subjectId = a['subject_id'] as int;
-            return Container(
-              margin: EdgeInsets.only(
-                bottom: index == _facultyAssignments.length - 1 ? 0 : 10,
-              ),
-              padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceSoft,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle_outline_rounded, color: AppColors.primary),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      '${_semesterLabel(semesterId)} • ${_sectionLabel(sectionId)}\n${_subjectLabel(subjectId)}',
-                      style: const TextStyle(color: AppColors.textPrimary, height: 1.4),
+          ...List.generate(
+            _facultyAssignments.length,
+            (index) {
+              final a =
+                  _facultyAssignments[
+                      index];
+
+              final semesterId =
+                  a['semester_id']
+                      as int;
+
+              final sectionId =
+                  a['section_id']
+                      as int;
+
+              final subjectId =
+                  a['subject_id']
+                      as int;
+
+              return Container(
+                margin:
+                    EdgeInsets.only(
+                  bottom: index ==
+                          _facultyAssignments
+                                  .length -
+                              1
+                      ? 0
+                      : 10,
+                ),
+                padding:
+                    const EdgeInsets
+                        .fromLTRB(
+                  12,
+                  10,
+                  8,
+                  10,
+                ),
+                decoration:
+                    BoxDecoration(
+                  color: AppColors
+                      .surfaceSoft,
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    12,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons
+                          .check_circle_outline_rounded,
+                      color:
+                          AppColors
+                              .primary,
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'Remove assignment',
-                    onPressed: _submitting
-                        ? null
-                        : () => setState(() => _facultyAssignments.removeAt(index)),
-                    icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
-                  ),
-                ],
-              ),
-            );
-          }),
+                    const SizedBox(
+                      width: 10,
+                    ),
+                    Expanded(
+                      child: Text(
+                        '${_semesterLabel(semesterId)} • '
+                        '${_sectionLabel(sectionId)}\n'
+                        '${_subjectLabel(subjectId)}',
+                        style:
+                            const TextStyle(
+                          color:
+                              AppColors
+                                  .textPrimary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip:
+                          'Remove assignment',
+                      onPressed:
+                          _submitting
+                              ? null
+                              : () =>
+                                  setState(
+                                    () => _facultyAssignments
+                                        .removeAt(
+                                      index,
+                                    ),
+                                  ),
+                      icon:
+                          const Icon(
+                        Icons
+                            .delete_outline_rounded,
+                        color:
+                            AppColors
+                                .error,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
       ],
     );
   }
+
+  // ============================================================
+  // COMMON UI
+  // ============================================================
 
   Widget _sectionCard({
     required String title,
@@ -815,35 +1646,55 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     return Card(
       elevation: 0,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding:
+            const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
                   width: 40,
                   height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceSoft,
-                    borderRadius: BorderRadius.circular(10),
+                  decoration:
+                      BoxDecoration(
+                    color: AppColors
+                        .surfaceSoft,
+                    borderRadius:
+                        BorderRadius
+                            .circular(
+                      10,
+                    ),
                   ),
-                  child: Icon(icon, color: AppColors.primary),
+                  child: Icon(
+                    icon,
+                    color: AppColors
+                        .primary,
+                  ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(
+                  width: 12,
+                ),
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style:
+                        const TextStyle(
+                      color: AppColors
+                          .textPrimary,
                       fontSize: 17,
-                      fontWeight: FontWeight.w700,
+                      fontWeight:
+                          FontWeight
+                              .w700,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 18),
+            const SizedBox(
+              height: 18,
+            ),
             ...children,
           ],
         ),
@@ -860,7 +1711,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     bool readOnly = false,
     VoidCallback? onTap,
     Widget? suffixIcon,
-    String? Function(String?)? validator,
+    String? Function(String?)?
+        validator,
   }) {
     return TextFormField(
       controller: controller,
@@ -869,7 +1721,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       obscureText: obscureText,
       readOnly: readOnly,
       onTap: onTap,
-      decoration: InputDecoration(
+      decoration:
+          InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
         suffixIcon: suffixIcon,
@@ -882,16 +1735,26 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     required String label,
     required IconData icon,
     required int? value,
-    required List<DropdownMenuItem<int>> items,
-    required ValueChanged<int?>? onChanged,
+    required List<
+            DropdownMenuItem<int>>
+        items,
+    required ValueChanged<int?>?
+        onChanged,
   }) {
     return InputDecorator(
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
-      child: DropdownButtonHideUnderline(
+      decoration:
+          InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+      ),
+      child:
+          DropdownButtonHideUnderline(
         child: DropdownButton<int>(
           value: value,
           isExpanded: true,
-          hint: Text('Select $label'),
+          hint: Text(
+            'Select $label',
+          ),
           items: items,
           onChanged: onChanged,
         ),
@@ -899,65 +1762,57 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     );
   }
 
-  String? _validatePassword(String? value) {
-    final password = value ?? '';
-
-    if (password.isEmpty) return 'Please enter a password.';
-    if (password.length < 8) {
-      return 'Password must be at least 8 characters.';
-    }
-    if (!RegExp(r'[A-Z]').hasMatch(password)) {
-      return 'Password must contain at least 1 uppercase letter.';
-    }
-    if (!RegExp(r'[a-z]').hasMatch(password)) {
-      return 'Password must contain at least 1 lowercase letter.';
-    }
-    if (!RegExp(r'[0-9]').hasMatch(password)) {
-      return 'Password must contain at least 1 number.';
-    }
-    if (!RegExp(r'[^A-Za-z0-9]').hasMatch(password)) {
-      return 'Password must contain at least 1 special character.';
-    }
-
-    return null;
+  String? Function(String?) _required(
+    String message,
+  ) {
+    return (value) =>
+        (value ?? '').trim().isEmpty
+            ? message
+            : null;
   }
 
-  String _toTitleCase(String value) {
-    final words = value
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((word) => word.isNotEmpty);
-
-    return words.map((word) {
-      final lower = word.toLowerCase();
-      if (lower.length == 1) return lower.toUpperCase();
-      return '${lower[0].toUpperCase()}${lower.substring(1)}';
-    }).join(' ');
-  }
-
-  String? Function(String?) _required(String message) {
-    return (value) => (value ?? '').trim().isEmpty ? message : null;
-  }
-
-  Widget _gap() => const SizedBox(height: 16);
+  Widget _gap() =>
+      const SizedBox(height: 16);
 
   Widget _errorBox(String message) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding:
+          const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.22)),
+        color: AppColors.error
+            .withValues(
+          alpha: 0.07,
+        ),
+        borderRadius:
+            BorderRadius.circular(10),
+        border: Border.all(
+          color: AppColors.error
+              .withValues(
+            alpha: 0.22,
+          ),
+        ),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.error_outline_rounded, color: AppColors.error),
-          const SizedBox(width: 10),
+          const Icon(
+            Icons
+                .error_outline_rounded,
+            color: AppColors.error,
+          ),
+          const SizedBox(
+            width: 10,
+          ),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: AppColors.error, fontSize: 13),
+              style:
+                  const TextStyle(
+                color:
+                    AppColors.error,
+                fontSize: 13,
+              ),
             ),
           ),
         ],
@@ -965,64 +1820,236 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     );
   }
 
+  // ============================================================
+  // LABEL HELPERS
+  // ============================================================
+
   Map<String, dynamic>? _findById(
     List<Map<String, dynamic>> items,
     String key,
     int id,
   ) {
     for (final item in items) {
-      if (_asInt(item[key]) == id) return item;
+      if (_asInt(item[key]) == id) {
+        return item;
+      }
     }
+
     return null;
   }
 
+  String _programLabel(int id) {
+    final row = _findById(
+      _programs,
+      'program_id',
+      id,
+    );
+
+    final code =
+        row?['program_code']
+            ?.toString()
+            .trim();
+
+    final name =
+        row?['program_name']
+            ?.toString()
+            .trim();
+
+    if (code != null &&
+        code.isNotEmpty &&
+        name != null &&
+        name.isNotEmpty) {
+      return '$code - $name';
+    }
+
+    if (name != null &&
+        name.isNotEmpty) {
+      return name;
+    }
+
+    if (code != null &&
+        code.isNotEmpty) {
+      return code;
+    }
+
+    return 'Program $id';
+  }
+
+  String _branchLabel(int id) {
+    final row = _findById(
+      _branches,
+      'branch_id',
+      id,
+    );
+
+    final code =
+        row?['branch_code']
+            ?.toString()
+            .trim();
+
+    final name =
+        row?['branch_name']
+            ?.toString()
+            .trim();
+
+    if (code != null &&
+        code.isNotEmpty &&
+        name != null &&
+        name.isNotEmpty) {
+      return '$code - $name';
+    }
+
+    if (name != null &&
+        name.isNotEmpty) {
+      return name;
+    }
+
+    if (code != null &&
+        code.isNotEmpty) {
+      return code;
+    }
+
+    return 'Department / Branch $id';
+  }
+
   String _semesterLabel(int id) {
-    final row = _findById(_semesters, 'semester_id', id);
-    final number = row?['semester_number']?.toString().trim();
-    final name = row?['semester_name']?.toString().trim();
-    if (name != null && name.isNotEmpty) return name;
-    if (number != null && number.isNotEmpty) return 'Semester $number';
+    final row = _findById(
+      _semesters,
+      'semester_id',
+      id,
+    );
+
+    final number =
+        row?['semester_number']
+            ?.toString()
+            .trim();
+
+    final name =
+        row?['semester_name']
+            ?.toString()
+            .trim();
+
+    if (name != null &&
+        name.isNotEmpty) {
+      return name;
+    }
+
+    if (number != null &&
+        number.isNotEmpty) {
+      return 'Semester $number';
+    }
+
     return 'Semester $id';
   }
 
   String _sectionLabel(int id) {
-    final row = _findById(_sections, 'section_id', id);
-    final name = row?['section_name']?.toString().trim();
-    return name == null || name.isEmpty ? 'Section $id' : 'Section $name';
+    final row = _findById(
+      _sections,
+      'section_id',
+      id,
+    );
+
+    final name =
+        row?['section_name']
+            ?.toString()
+            .trim();
+
+    return name == null ||
+            name.isEmpty
+        ? 'Section $id'
+        : 'Section $name';
   }
 
   String _subjectLabel(int id) {
-    final row = _findById(_subjects, 'subject_id', id);
-    final code = row?['subject_code']?.toString().trim();
-    final name = row?['subject_name']?.toString().trim();
-    if (code != null && code.isNotEmpty && name != null && name.isNotEmpty) {
+    final row = _findById(
+      _subjects,
+      'subject_id',
+      id,
+    );
+
+    final code =
+        row?['subject_code']
+            ?.toString()
+            .trim();
+
+    final name =
+        row?['subject_name']
+            ?.toString()
+            .trim();
+
+    if (code != null &&
+        code.isNotEmpty &&
+        name != null &&
+        name.isNotEmpty) {
       return '$code - $name';
     }
-    if (name != null && name.isNotEmpty) return name;
-    if (code != null && code.isNotEmpty) return code;
+
+    if (name != null &&
+        name.isNotEmpty) {
+      return name;
+    }
+
+    if (code != null &&
+        code.isNotEmpty) {
+      return code;
+    }
+
     return 'Subject $id';
   }
 
+  // ============================================================
+  // ERROR / SNACK
+  // ============================================================
+
   String _cleanError(Object error) {
-    var message = error.toString().trim();
-    if (message.startsWith('Exception: ')) {
-      message = message.substring('Exception: '.length).trim();
+    var message =
+        error.toString().trim();
+
+    if (message.startsWith(
+      'Exception: ',
+    )) {
+      message = message.substring(
+        'Exception: '.length,
+      ).trim();
     }
-    final lower = message.toLowerCase();
-    if (lower.contains('failed to fetch') ||
-        lower.contains('clientexception') ||
-        lower.contains('xmlhttprequest error') ||
-        lower.contains('socketexception') ||
-        lower.contains('connection refused') ||
-        lower.contains('network request failed')) {
-      return 'Unable to connect to the server. Please check your connection and try again.';
+
+    final lower =
+        message.toLowerCase();
+
+    if (lower.contains(
+          'failed to fetch',
+        ) ||
+        lower.contains(
+          'clientexception',
+        ) ||
+        lower.contains(
+          'xmlhttprequest error',
+        ) ||
+        lower.contains(
+          'socketexception',
+        ) ||
+        lower.contains(
+          'connection refused',
+        ) ||
+        lower.contains(
+          'network request failed',
+        )) {
+      return 'Unable to connect to the server. '
+          'Please check your connection and try again.';
     }
-    return message.isEmpty ? 'Something went wrong. Please try again.' : message;
+
+    return message.isEmpty
+        ? 'Something went wrong. Please try again.'
+        : message;
   }
 
   void _snack(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+        ),
+      );
   }
 }
